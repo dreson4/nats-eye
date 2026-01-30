@@ -1,0 +1,17 @@
+services:
+  nats-eye:
+    image: ghcr.io/dreson4/nats-eye:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - nats-eye-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  nats-eye-data:

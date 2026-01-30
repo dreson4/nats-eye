@@ -19,7 +19,7 @@ docker run -d \
   -p 3000:3000 \
   -v nats-eye-data:/app/data \
   --name nats-eye \
-  dreson4/nats-eye
+  ghcr.io/dreson4/nats-eye:latest
 ```
 
 Then open http://localhost:3000 in your browser.
@@ -27,10 +27,9 @@ Then open http://localhost:3000 in your browser.
 ### Docker Compose
 
 ```yaml
-version: '3.8'
 services:
   nats-eye:
-    image: dreson4/nats-eye
+    image: ghcr.io/dreson4/nats-eye:latest
     ports:
       - "3000:3000"
     volumes:

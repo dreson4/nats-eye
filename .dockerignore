@@ -1,0 +1,17 @@
+node_modules
+dist
+.git
+.github
+.claude
+.vscode
+*.md
+!README.md
+.DS_Store
+.env
+.env.*
+data/
+*.log
+.gitignore
+.dockerignore
+Dockerfile
+docker-compose*.yml
