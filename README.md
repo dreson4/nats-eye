@@ -2,6 +2,8 @@
 
 A modern, self-hostable web UI for managing NATS clusters. Monitor your JetStream streams, KV stores, and cluster health in real-time.
 
+> **100% Vibe Coded** - This entire codebase was written by Claude Code with my guidance and direction. I wrote zero lines of code, just provided requirements, feedback, and design decisions. Took a few hours. I expect you will self host this and run on your own machine. If anything doesn't work make a bug report or PR.
+
 ![NATS Eye Dashboard](https://img.shields.io/badge/status-beta-yellow)
 
 ## Features
@@ -42,10 +44,10 @@ volumes:
 
 ## Configuration
 
-| Environment Variable | Default | Description |
-|---------------------|---------|-------------|
-| `PORT` | `3000` | Server port |
-| `SECURE_COOKIES` | `false` | Set to `true` if using HTTPS |
+| Environment Variable | Default | Description                  |
+| -------------------- | ------- | ---------------------------- |
+| `PORT`               | `3000`  | Server port                  |
+| `SECURE_COOKIES`     | `false` | Set to `true` if using HTTPS |
 
 ## First-Time Setup
 
