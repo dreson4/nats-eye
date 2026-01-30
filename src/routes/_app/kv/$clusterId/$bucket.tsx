@@ -138,9 +138,23 @@ function KvBucketPage() {
 			// Get connection info from API
 			const connInfo = await clustersApi.getConnectionInfo(clusterId);
 
+			// Check for mixed content issues (HTTP page trying to use WSS, or HTTPS page trying to use WS)
+			const pageProtocol = window.location.protocol;
+			const isSecurePage = pageProtocol === 'https:';
+			const hasSecureWs = connInfo.urls.some(url => url.startsWith('wss://'));
+			const hasInsecureWs = connInfo.urls.some(url => url.startsWith('ws://') && !url.startsWith('wss://'));
+
+			if (isSecurePage && hasInsecureWs && !hasSecureWs) {
+				throw new Error(
+					'Security Error: This page is served over HTTPS but the NATS server uses insecure WebSocket (ws://). ' +
+					'Please configure your NATS server to use secure WebSocket (wss://) or access this app over HTTP.'
+				);
+			}
+
 			// Build connection options
 			const opts: Parameters<typeof connect>[0] = {
 				servers: connInfo.urls,
+				timeout: 10000, // 10 second timeout
 			};
 
 			if (connInfo.authType === "token" && connInfo.token) {
@@ -198,7 +212,17 @@ function KvBucketPage() {
 			})();
 		} catch (err) {
 			console.error("Failed to connect to NATS:", err);
-			setConnectionError(err instanceof Error ? err.message : "Connection failed");
+			let errorMessage = err instanceof Error ? err.message : "Connection failed";
+
+			// Add helpful hints for common issues
+			if (errorMessage.includes('WebSocket') || errorMessage.includes('connect')) {
+				const isSecurePage = window.location.protocol === 'https:';
+				if (isSecurePage) {
+					errorMessage += '\n\nNote: You are accessing this app over HTTPS. Make sure your NATS server supports secure WebSocket (wss://) connections.';
+				}
+			}
+
+			setConnectionError(errorMessage);
 			setNatsConnected(false);
 			setIsLoading(false);
 		}
@@ -404,19 +428,21 @@ function KvBucketPage() {
 								<AlertCircle className="h-5 w-5" />
 								Connection Error
 							</CardTitle>
-							<CardDescription>{connectionError}</CardDescription>
 						</CardHeader>
-						<CardContent className="flex gap-2">
-							<Button variant="outline" onClick={() => connectToNats()}>
-								<RefreshCw className="h-4 w-4 mr-2" />
-								Retry
-							</Button>
-							<Button asChild variant="outline">
-								<Link to="/kv">
-									<ArrowLeft className="h-4 w-4 mr-2" />
-									Back to KV Store
-								</Link>
-							</Button>
+						<CardContent className="space-y-4">
+							<p className="text-sm text-muted-foreground whitespace-pre-wrap">{connectionError}</p>
+							<div className="flex gap-2">
+								<Button variant="outline" onClick={() => connectToNats()}>
+									<RefreshCw className="h-4 w-4 mr-2" />
+									Retry
+								</Button>
+								<Button asChild variant="outline">
+									<Link to="/kv">
+										<ArrowLeft className="h-4 w-4 mr-2" />
+										Back to KV Store
+									</Link>
+								</Button>
+							</div>
 						</CardContent>
 					</Card>
 				</div>

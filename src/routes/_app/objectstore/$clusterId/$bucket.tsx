@@ -161,8 +161,21 @@ function ObjectStoreBucketPage() {
 		try {
 			const connInfo = await clustersApi.getConnectionInfo(clusterId);
 
+			// Check for mixed content issues
+			const isSecurePage = window.location.protocol === 'https:';
+			const hasSecureWs = connInfo.urls.some(url => url.startsWith('wss://'));
+			const hasInsecureWs = connInfo.urls.some(url => url.startsWith('ws://') && !url.startsWith('wss://'));
+
+			if (isSecurePage && hasInsecureWs && !hasSecureWs) {
+				throw new Error(
+					'Security Error: This page is served over HTTPS but the NATS server uses insecure WebSocket (ws://). ' +
+					'Please configure your NATS server to use secure WebSocket (wss://) or access this app over HTTP.'
+				);
+			}
+
 			const opts: Parameters<typeof connect>[0] = {
 				servers: connInfo.urls,
+				timeout: 10000,
 			};
 
 			if (connInfo.authType === "token" && connInfo.token) {
@@ -219,7 +232,17 @@ function ObjectStoreBucketPage() {
 			})();
 		} catch (err) {
 			console.error("Failed to connect to NATS:", err);
-			setConnectionError(err instanceof Error ? err.message : "Connection failed");
+			let errorMessage = err instanceof Error ? err.message : "Connection failed";
+
+			// Add helpful hints for common issues
+			if (errorMessage.includes('WebSocket') || errorMessage.includes('connect')) {
+				const isSecurePage = window.location.protocol === 'https:';
+				if (isSecurePage) {
+					errorMessage += '\n\nNote: You are accessing this app over HTTPS. Make sure your NATS server supports secure WebSocket (wss://) connections.';
+				}
+			}
+
+			setConnectionError(errorMessage);
 			setNatsConnected(false);
 			setIsLoading(false);
 		}
