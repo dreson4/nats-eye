@@ -7,9 +7,11 @@ import clusters from "./routes/clusters";
 import consumers from "./routes/consumers";
 import kv from "./routes/kv";
 import monitoring from "./routes/monitoring";
+import notifications from "./routes/notifications";
 import objectstore from "./routes/objectstore";
 import stats from "./routes/stats";
 import streams from "./routes/streams";
+import * as alertMonitor from "./services/alert-monitor";
 
 const app = new Hono();
 
@@ -33,9 +35,13 @@ app.route("/api/clusters", clusters);
 app.route("/api/consumers", consumers);
 app.route("/api/kv", kv);
 app.route("/api/monitoring", monitoring);
+app.route("/api/notifications", notifications);
 app.route("/api/objectstore", objectstore);
 app.route("/api/stats", stats);
 app.route("/api/streams", streams);
+
+// Initialize alert monitor (auto-starts if was enabled before restart)
+alertMonitor.initialize();
 
 // Health check
 app.get("/api/health", (c) => c.json({ status: "ok" }));

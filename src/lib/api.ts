@@ -728,3 +728,108 @@ export const monitoringApi = {
 		return request<AlertEvent[]>(`/monitoring/events/recent${query}`);
 	},
 };
+
+// Notification types
+export type NotificationChannelType = "telegram" | "discord" | "webhook" | "slack";
+
+export interface TelegramConfig {
+	botToken: string;
+	chatId: string;
+}
+
+export interface DiscordConfig {
+	webhookUrl: string;
+}
+
+export interface SlackConfig {
+	webhookUrl: string;
+}
+
+export interface WebhookConfig {
+	url: string;
+	method?: "GET" | "POST";
+	headers?: Record<string, string>;
+}
+
+export type NotificationChannelConfig = TelegramConfig | DiscordConfig | WebhookConfig | SlackConfig;
+
+export interface NotificationChannel {
+	id: string;
+	name: string;
+	type: NotificationChannelType;
+	config: NotificationChannelConfig;
+	enabled: boolean;
+	created_at: number;
+	updated_at: number;
+}
+
+export interface AlertMonitorStatus {
+	running: boolean;
+	interval: number;
+}
+
+// Notifications API
+export const notificationsApi = {
+	// Channels
+	getChannels: () => request<NotificationChannel[]>("/notifications/channels"),
+
+	getChannel: (id: string) => request<NotificationChannel>(`/notifications/channels/${id}`),
+
+	createChannel: (data: {
+		name: string;
+		type: NotificationChannelType;
+		config: NotificationChannelConfig;
+		enabled?: boolean;
+	}) =>
+		request<NotificationChannel>("/notifications/channels", {
+			method: "POST",
+			body: JSON.stringify(data),
+		}),
+
+	updateChannel: (
+		id: string,
+		data: {
+			name?: string;
+			type?: NotificationChannelType;
+			config?: NotificationChannelConfig;
+			enabled?: boolean;
+		},
+	) =>
+		request<NotificationChannel>(`/notifications/channels/${id}`, {
+			method: "PATCH",
+			body: JSON.stringify(data),
+		}),
+
+	deleteChannel: (id: string) =>
+		request<{ success: boolean }>(`/notifications/channels/${id}`, { method: "DELETE" }),
+
+	testChannel: (id: string) =>
+		request<{ success: boolean; error?: string }>(`/notifications/channels/${id}/test`, {
+			method: "POST",
+		}),
+
+	testCredentials: (data: { type: NotificationChannelType; config: NotificationChannelConfig }) =>
+		request<{ success: boolean; error?: string }>("/notifications/test", {
+			method: "POST",
+			body: JSON.stringify(data),
+		}),
+
+	// Monitor control
+	getMonitorStatus: () => request<AlertMonitorStatus>("/notifications/monitor/status"),
+
+	startMonitor: () =>
+		request<{ success: boolean } & AlertMonitorStatus>("/notifications/monitor/start", {
+			method: "POST",
+		}),
+
+	stopMonitor: () =>
+		request<{ success: boolean } & AlertMonitorStatus>("/notifications/monitor/stop", {
+			method: "POST",
+		}),
+
+	setMonitorInterval: (interval: number) =>
+		request<{ success: boolean; interval: number }>("/notifications/monitor/interval", {
+			method: "POST",
+			body: JSON.stringify({ interval }),
+		}),
+};

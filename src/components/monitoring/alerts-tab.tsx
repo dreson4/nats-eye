@@ -10,6 +10,7 @@ import {
 	Trash2,
 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -40,7 +41,6 @@ import { CreateAlertDialog } from "./create-alert-dialog";
 import {
 	monitoringApi,
 	type Alert,
-	type AlertEvent,
 	type AlertMetric,
 	type AlertCondition,
 } from "@/lib/api";
@@ -83,12 +83,13 @@ export function AlertsTab({ clusterId }: AlertsTabProps) {
 		refetchInterval: 10000,
 	});
 
-	const handleToggleAlert = async (alert: Alert) => {
+	const handleToggleAlert = async (alertToToggle: Alert) => {
 		try {
-			await monitoringApi.updateAlert(alert.id, { enabled: !alert.enabled });
+			await monitoringApi.updateAlert(alertToToggle.id, { enabled: !alertToToggle.enabled });
 			queryClient.invalidateQueries({ queryKey: ["monitoring", "alerts"] });
-		} catch (error) {
-			alert("Failed to update alert");
+			toast.success(alertToToggle.enabled ? "Alert disabled" : "Alert enabled");
+		} catch {
+			toast.error("Failed to update alert");
 		}
 	};
 
@@ -98,8 +99,9 @@ export function AlertsTab({ clusterId }: AlertsTabProps) {
 		try {
 			await monitoringApi.deleteAlert(alertId);
 			queryClient.invalidateQueries({ queryKey: ["monitoring", "alerts"] });
-		} catch (error) {
-			alert("Failed to delete alert");
+			toast.success("Alert deleted");
+		} catch {
+			toast.error("Failed to delete alert");
 		}
 	};
 
@@ -108,10 +110,12 @@ export function AlertsTab({ clusterId }: AlertsTabProps) {
 			const result = await monitoringApi.checkAlerts(clusterId);
 			queryClient.invalidateQueries({ queryKey: ["monitoring", "events"] });
 			if (result.triggered > 0) {
-				alert(`${result.triggered} alert(s) triggered!`);
+				toast.warning(`${result.triggered} alert(s) triggered!`);
+			} else {
+				toast.success("All alerts OK");
 			}
-		} catch (error) {
-			alert("Failed to check alerts");
+		} catch {
+			toast.error("Failed to check alerts");
 		}
 	};
 

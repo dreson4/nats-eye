@@ -76,6 +76,17 @@ function initializeSchema(db: Database) {
 			value TEXT NOT NULL
 		);
 
+		-- Notification channels table
+		CREATE TABLE IF NOT EXISTS notification_channels (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			type TEXT NOT NULL,
+			config TEXT NOT NULL,
+			enabled INTEGER DEFAULT 1,
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		);
+
 		-- Create indexes
 		CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 		CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
@@ -703,4 +714,152 @@ export function getRecentAlertEvents(limit = 100): AlertEvent[] {
 export function deleteAlertEventsByAlertId(alertId: string): void {
 	const db = getDb();
 	db.run("DELETE FROM alert_events WHERE alert_id = ?", [alertId]);
+}
+
+// Notification channel operations
+export type NotificationChannelType = "telegram" | "discord" | "webhook" | "slack";
+
+export interface TelegramConfig {
+	botToken: string;
+	chatId: string;
+}
+
+export interface DiscordConfig {
+	webhookUrl: string;
+}
+
+export interface WebhookConfig {
+	url: string;
+	method?: "GET" | "POST";
+	headers?: Record<string, string>;
+}
+
+export interface SlackConfig {
+	webhookUrl: string;
+}
+
+export type NotificationChannelConfig = TelegramConfig | DiscordConfig | WebhookConfig | SlackConfig;
+
+export interface NotificationChannel {
+	id: string;
+	name: string;
+	type: NotificationChannelType;
+	config: NotificationChannelConfig;
+	enabled: boolean;
+	created_at: number;
+	updated_at: number;
+}
+
+interface NotificationChannelRow {
+	id: string;
+	name: string;
+	type: string;
+	config: string;
+	enabled: number;
+	created_at: number;
+	updated_at: number;
+}
+
+function rowToNotificationChannel(row: NotificationChannelRow): NotificationChannel {
+	return {
+		...row,
+		type: row.type as NotificationChannelType,
+		config: JSON.parse(row.config) as NotificationChannelConfig,
+		enabled: row.enabled === 1,
+	};
+}
+
+export function createNotificationChannel(
+	name: string,
+	type: NotificationChannelType,
+	config: NotificationChannelConfig,
+	enabled = true,
+): NotificationChannel {
+	const db = getDb();
+	const id = generateId();
+	const timestamp = now();
+
+	db.run(
+		`INSERT INTO notification_channels (id, name, type, config, enabled, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		[id, name, type, JSON.stringify(config), enabled ? 1 : 0, timestamp, timestamp],
+	);
+
+	return {
+		id,
+		name,
+		type,
+		config,
+		enabled,
+		created_at: timestamp,
+		updated_at: timestamp,
+	};
+}
+
+export function getNotificationChannel(id: string): NotificationChannel | null {
+	const db = getDb();
+	const row = db
+		.query<NotificationChannelRow, [string]>("SELECT * FROM notification_channels WHERE id = ?")
+		.get(id);
+	return row ? rowToNotificationChannel(row) : null;
+}
+
+export function getAllNotificationChannels(): NotificationChannel[] {
+	const db = getDb();
+	const rows = db
+		.query<NotificationChannelRow, []>("SELECT * FROM notification_channels ORDER BY name")
+		.all();
+	return rows.map(rowToNotificationChannel);
+}
+
+export function getEnabledNotificationChannels(): NotificationChannel[] {
+	const db = getDb();
+	const rows = db
+		.query<NotificationChannelRow, []>("SELECT * FROM notification_channels WHERE enabled = 1 ORDER BY name")
+		.all();
+	return rows.map(rowToNotificationChannel);
+}
+
+export function updateNotificationChannel(
+	id: string,
+	data: Partial<Pick<NotificationChannel, "name" | "type" | "config" | "enabled">>,
+): NotificationChannel | null {
+	const db = getDb();
+	const existing = getNotificationChannel(id);
+	if (!existing) return null;
+
+	const updates: string[] = [];
+	const values: (string | number | null)[] = [];
+
+	if (data.name !== undefined) {
+		updates.push("name = ?");
+		values.push(data.name);
+	}
+	if (data.type !== undefined) {
+		updates.push("type = ?");
+		values.push(data.type);
+	}
+	if (data.config !== undefined) {
+		updates.push("config = ?");
+		values.push(JSON.stringify(data.config));
+	}
+	if (data.enabled !== undefined) {
+		updates.push("enabled = ?");
+		values.push(data.enabled ? 1 : 0);
+	}
+
+	if (updates.length === 0) return existing;
+
+	updates.push("updated_at = ?");
+	values.push(now());
+	values.push(id);
+
+	db.run(`UPDATE notification_channels SET ${updates.join(", ")} WHERE id = ?`, values);
+	return getNotificationChannel(id);
+}
+
+export function deleteNotificationChannel(id: string): boolean {
+	const db = getDb();
+	const result = db.run("DELETE FROM notification_channels WHERE id = ?", [id]);
+	return result.changes > 0;
 }

@@ -5,6 +5,7 @@ import {
 	AlertCircle,
 	AlertTriangle,
 	Bell,
+	BellRing,
 	Cable,
 	Check,
 	Heart,
@@ -17,6 +18,7 @@ import { OverviewTab } from "@/components/monitoring/overview-tab";
 import { ConnectionsTab } from "@/components/monitoring/connections-tab";
 import { SubscriptionsTab } from "@/components/monitoring/subscriptions-tab";
 import { AlertsTab } from "@/components/monitoring/alerts-tab";
+import { NotificationsTab } from "@/components/monitoring/notifications-tab";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -231,6 +233,10 @@ function MonitoringPage() {
 								<Bell className="h-4 w-4" />
 								Alerts
 							</TabsTrigger>
+							<TabsTrigger value="notifications" className="flex items-center gap-2">
+								<BellRing className="h-4 w-4" />
+								Notifications
+							</TabsTrigger>
 						</TabsList>
 
 						<TabsContent value="overview" className="space-y-4">
@@ -247,6 +253,10 @@ function MonitoringPage() {
 
 						<TabsContent value="alerts" className="space-y-4">
 							<AlertsTab clusterId={selectedCluster} />
+						</TabsContent>
+
+						<TabsContent value="notifications" className="space-y-4">
+							<NotificationsTab />
 						</TabsContent>
 					</Tabs>
 				) : null}
