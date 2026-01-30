@@ -473,7 +473,7 @@ function ObjectStoreBucketPage() {
 						</Link>
 					</Button>
 				</AppHeader>
-				<div className="flex flex-1 flex-col gap-4 p-4">
+				<div className="page-content">
 					<Card>
 						<CardHeader>
 							<CardTitle className="flex items-center gap-2 text-destructive">
@@ -520,7 +520,7 @@ function ObjectStoreBucketPage() {
 				</Button>
 			</AppHeader>
 
-			<div className="flex flex-1 flex-col gap-4 p-4">
+			<div className="page-content">
 				{/* Bucket Info Card */}
 				{isLoading && !bucketInfo ? (
 					<Card>

@@ -146,7 +146,7 @@ function DashboardPage() {
 					Refresh
 				</Button>
 			</AppHeader>
-			<div className="flex flex-1 flex-col gap-6 p-6">
+			<div className="page-content gap-6 p-6">
 				{/* Stats Cards */}
 				<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
 					{isLoading ? (

@@ -3,7 +3,6 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
 	Activity,
 	Database,
-	Eye,
 	FolderArchive,
 	Layers,
 	LayoutDashboard,
@@ -12,7 +11,8 @@ import {
 	Settings,
 	Users,
 } from "lucide-react";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { Moon, Sun } from "lucide-react";
+import { useTheme } from "@/components/theme-provider";
 import {
 	Sidebar,
 	SidebarContent,
@@ -85,6 +85,7 @@ export function AppSidebar() {
 	const queryClient = useQueryClient();
 	const routerState = useRouterState();
 	const currentPath = routerState.location.pathname;
+	const { theme, setTheme, resolvedTheme } = useTheme();
 
 	const handleLogout = async () => {
 		await authApi.logout();
@@ -97,6 +98,14 @@ export function AppSidebar() {
 		return currentPath.startsWith(url);
 	};
 
+	const cycleTheme = () => {
+		if (theme === "light") setTheme("dark");
+		else if (theme === "dark") setTheme("system");
+		else setTheme("light");
+	};
+
+	const themeLabel = theme === "system" ? "System" : theme === "dark" ? "Dark" : "Light";
+
 	return (
 		<Sidebar collapsible="icon">
 			<SidebarHeader>
@@ -104,9 +113,11 @@ export function AppSidebar() {
 					<SidebarMenuItem>
 						<SidebarMenuButton size="lg" asChild>
 							<Link to="/dashboard">
-								<div className="flex aspect-square size-8 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-									<Eye className="size-4" />
-								</div>
+								<img
+									src="/logo.webp"
+									alt="NATS Eye"
+									className="size-8 rounded-lg object-contain"
+								/>
 								<div className="flex flex-col gap-0.5 leading-none">
 									<span className="font-semibold">NATS Eye</span>
 									<span className="text-xs text-muted-foreground">
@@ -158,9 +169,10 @@ export function AppSidebar() {
 						</SidebarMenuButton>
 					</SidebarMenuItem>
 					<SidebarMenuItem>
-						<div className="flex items-center justify-between px-2 py-1">
-							<ThemeToggle />
-						</div>
+						<SidebarMenuButton tooltip={`Theme: ${themeLabel}`} onClick={cycleTheme}>
+							{resolvedTheme === "dark" ? <Moon /> : <Sun />}
+							<span>{themeLabel}</span>
+						</SidebarMenuButton>
 					</SidebarMenuItem>
 					<SidebarMenuItem>
 						<SidebarMenuButton tooltip="Logout" onClick={handleLogout}>

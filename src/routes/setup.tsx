@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { Eye, Loader2, ShieldCheck } from "lucide-react";
+import { Loader2, ShieldCheck } from "lucide-react";
 import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -85,9 +85,11 @@ function SetupPage() {
 		<div className="flex min-h-screen items-center justify-center bg-background p-4">
 			<Card className="w-full max-w-md">
 				<CardHeader className="text-center">
-					<div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-						<Eye className="h-6 w-6" />
-					</div>
+					<img
+						src="/logo.webp"
+						alt="NATS Eye"
+						className="mx-auto mb-4 h-16 w-16 rounded-xl object-contain"
+					/>
 					<CardTitle className="text-2xl">Welcome to NATS Eye</CardTitle>
 					<CardDescription>
 						Create your admin account to get started

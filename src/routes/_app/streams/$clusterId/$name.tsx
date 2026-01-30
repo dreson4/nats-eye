@@ -308,7 +308,7 @@ function StreamDetailPage() {
 						{ label: name },
 					]}
 				/>
-				<div className="flex flex-1 flex-col gap-4 p-4">
+				<div className="page-content">
 					<Card>
 						<CardHeader>
 							<CardTitle className="flex items-center gap-2 text-destructive">
@@ -354,7 +354,7 @@ function StreamDetailPage() {
 				</Button>
 			</AppHeader>
 
-			<div className="flex flex-1 flex-col gap-4 p-4">
+			<div className="page-content">
 				{isLoading ? (
 					<>
 						<div className="grid gap-4 md:grid-cols-4">

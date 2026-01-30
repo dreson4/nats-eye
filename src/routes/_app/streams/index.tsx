@@ -138,7 +138,7 @@ function StreamsPage() {
 					</Button>
 				)}
 			</AppHeader>
-			<div className="flex flex-1 flex-col gap-4 p-4">
+			<div className="page-content">
 				{/* Header with cluster selector and actions */}
 				<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 					<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
