@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>NATS Eye</title>
+		<meta name="description" content="Self-hostable NATS cluster manager" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<script>
+			// Prevent flash of wrong theme
+			(function() {
+				const theme = localStorage.getItem('theme') || 'system';
+				const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+				const resolved = theme === 'system' ? (systemDark ? 'dark' : 'light') : theme;
+				document.documentElement.classList.add(resolved);
+			})();
+		</script>
+	</head>
+	<body>
+		<div id="root"></div>
+		<script type="module" src="/src/main.tsx"></script>
+	</body>
+</html>
