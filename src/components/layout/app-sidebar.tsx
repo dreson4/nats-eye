@@ -25,6 +25,7 @@ import {
 	SidebarMenuButton,
 	SidebarMenuItem,
 	SidebarRail,
+	useSidebar,
 } from "@/components/ui/sidebar";
 import { authApi } from "@/lib/api";
 
@@ -86,6 +87,7 @@ export function AppSidebar() {
 	const routerState = useRouterState();
 	const currentPath = routerState.location.pathname;
 	const { theme, setTheme, resolvedTheme } = useTheme();
+	const { isMobile, setOpenMobile } = useSidebar();
 
 	const handleLogout = async () => {
 		await authApi.logout();
@@ -104,15 +106,22 @@ export function AppSidebar() {
 		else setTheme("light");
 	};
 
+	// Close sidebar on mobile when navigating
+	const handleLinkClick = () => {
+		if (isMobile) {
+			setOpenMobile(false);
+		}
+	};
+
 	const themeLabel = theme === "system" ? "System" : theme === "dark" ? "Dark" : "Light";
 
 	return (
 		<Sidebar collapsible="icon">
-			<SidebarHeader>
+			<SidebarHeader className="safe-area-top">
 				<SidebarMenu>
 					<SidebarMenuItem>
 						<SidebarMenuButton size="lg" asChild>
-							<Link to="/dashboard">
+							<Link to="/dashboard" onClick={handleLinkClick}>
 								<img
 									src="/logo.webp"
 									alt="NATS Eye"
@@ -145,7 +154,7 @@ export function AppSidebar() {
 											isActive={isActive(item.url)}
 											tooltip={item.title}
 										>
-											<Link to={item.url}>
+											<Link to={item.url} onClick={handleLinkClick}>
 												<item.icon />
 												<span>{item.title}</span>
 											</Link>
@@ -162,7 +171,7 @@ export function AppSidebar() {
 				<SidebarMenu>
 					<SidebarMenuItem>
 						<SidebarMenuButton asChild tooltip="Settings">
-							<Link to="/settings">
+							<Link to="/settings" onClick={handleLinkClick}>
 								<Settings />
 								<span>Settings</span>
 							</Link>

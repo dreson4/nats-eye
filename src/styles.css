@@ -173,9 +173,15 @@ code {
     padding-right: env(safe-area-inset-right);
   }
 
-  /* Apply safe area to sidebar - the sidebar already has the right background */
-  [data-sidebar="sidebar"] {
+  /* Apply safe area to sidebar - desktop */
+  [data-sidebar="sidebar"]:not([data-mobile="true"]) {
     padding-top: env(safe-area-inset-top);
+  }
+
+  /* Apply safe area to mobile sidebar (Sheet) */
+  [data-sidebar="sidebar"][data-mobile="true"] {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   /* Apply safe area to main content area */
@@ -270,4 +276,14 @@ code {
 /* Nav section label */
 .nav-section-label {
   @apply px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground;
+}
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }

@@ -216,28 +216,34 @@ function MonitoringPage() {
 					</Card>
 				) : selectedCluster ? (
 					<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-						<TabsList>
-							<TabsTrigger value="overview" className="flex items-center gap-2">
-								<Heart className="h-4 w-4" />
-								Overview
-							</TabsTrigger>
-							<TabsTrigger value="connections" className="flex items-center gap-2">
-								<Cable className="h-4 w-4" />
-								Connections
-							</TabsTrigger>
-							<TabsTrigger value="subscriptions" className="flex items-center gap-2">
-								<Activity className="h-4 w-4" />
-								Subscriptions
-							</TabsTrigger>
-							<TabsTrigger value="alerts" className="flex items-center gap-2">
-								<Bell className="h-4 w-4" />
-								Alerts
-							</TabsTrigger>
-							<TabsTrigger value="notifications" className="flex items-center gap-2">
-								<BellRing className="h-4 w-4" />
-								Notifications
-							</TabsTrigger>
-						</TabsList>
+						<div className="overflow-x-auto scrollbar-hide -mx-4 px-4">
+							<TabsList className="w-max min-w-full sm:w-auto">
+								<TabsTrigger value="overview" className="flex items-center gap-2">
+									<Heart className="h-4 w-4" />
+									<span className="hidden sm:inline">Overview</span>
+									<span className="sm:hidden">Overview</span>
+								</TabsTrigger>
+								<TabsTrigger value="connections" className="flex items-center gap-2">
+									<Cable className="h-4 w-4" />
+									<span className="hidden sm:inline">Connections</span>
+									<span className="sm:hidden">Conn</span>
+								</TabsTrigger>
+								<TabsTrigger value="subscriptions" className="flex items-center gap-2">
+									<Activity className="h-4 w-4" />
+									<span className="hidden sm:inline">Subscriptions</span>
+									<span className="sm:hidden">Subs</span>
+								</TabsTrigger>
+								<TabsTrigger value="alerts" className="flex items-center gap-2">
+									<Bell className="h-4 w-4" />
+									<span>Alerts</span>
+								</TabsTrigger>
+								<TabsTrigger value="notifications" className="flex items-center gap-2">
+									<BellRing className="h-4 w-4" />
+									<span className="hidden sm:inline">Notifications</span>
+									<span className="sm:hidden">Notify</span>
+								</TabsTrigger>
+							</TabsList>
+						</div>
 
 						<TabsContent value="overview" className="space-y-4">
 							<OverviewTab clusterId={selectedCluster} selectedServers={selectedServers} />
