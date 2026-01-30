@@ -45,6 +45,19 @@ export const authApi = {
 			method: "POST",
 			body: JSON.stringify({ username, password }),
 		}),
+
+	updateUser: (data: {
+		username?: string;
+		currentPassword: string;
+		newPassword?: string;
+	}) =>
+		request<{ success: boolean; user?: { id: string; username: string }; error?: string }>(
+			"/auth/user",
+			{
+				method: "PATCH",
+				body: JSON.stringify(data),
+			},
+		),
 };
 
 // Cluster types

@@ -9,6 +9,7 @@ import {
 	getSession,
 	getUserByUsername,
 	getUserCount,
+	updateUser,
 } from "../db";
 
 const SESSION_COOKIE_NAME = "nats_eye_session";
@@ -138,6 +139,69 @@ auth.post("/setup", zValidator("json", setupSchema), async (c) => {
 	}
 
 	return c.json({ success: true });
+});
+
+// Update user credentials
+const updateUserSchema = z.object({
+	username: z.string().min(3, "Username must be at least 3 characters").optional(),
+	currentPassword: z.string().min(1, "Current password is required"),
+	newPassword: z.string().min(8, "Password must be at least 8 characters").optional(),
+});
+
+auth.patch("/user", zValidator("json", updateUserSchema), async (c) => {
+	// Verify session
+	const sessionId = getCookie(c, SESSION_COOKIE_NAME);
+	if (!sessionId) {
+		return c.json({ success: false, error: "Not authenticated" }, 401);
+	}
+
+	const session = getSession(sessionId);
+	if (!session) {
+		return c.json({ success: false, error: "Invalid session" }, 401);
+	}
+
+	const { username, currentPassword, newPassword } = c.req.valid("json");
+
+	// Verify current password
+	const isValid = await verifyPassword(currentPassword, session.user.password_hash);
+	if (!isValid) {
+		return c.json({ success: false, error: "Current password is incorrect" }, 400);
+	}
+
+	// Check if new username is taken (if changing username)
+	if (username && username !== session.user.username) {
+		const existingUser = getUserByUsername(username);
+		if (existingUser) {
+			return c.json({ success: false, error: "Username already taken" }, 400);
+		}
+	}
+
+	// Build update data
+	const updateData: { username?: string; password_hash?: string } = {};
+	if (username) {
+		updateData.username = username;
+	}
+	if (newPassword) {
+		updateData.password_hash = await hashPassword(newPassword);
+	}
+
+	if (Object.keys(updateData).length === 0) {
+		return c.json({ success: false, error: "No changes provided" }, 400);
+	}
+
+	// Update user
+	const updatedUser = updateUser(session.user.id, updateData);
+	if (!updatedUser) {
+		return c.json({ success: false, error: "Failed to update user" }, 500);
+	}
+
+	return c.json({
+		success: true,
+		user: {
+			id: updatedUser.id,
+			username: updatedUser.username,
+		},
+	});
 });
 
 export default auth;

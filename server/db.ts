@@ -199,6 +199,40 @@ export function getUserCount(): number {
 	return result?.count ?? 0;
 }
 
+export function updateUser(
+	id: string,
+	data: { username?: string; password_hash?: string },
+): User | null {
+	const db = getDb();
+	const existing = getUserById(id);
+	if (!existing) return null;
+
+	const updates: string[] = [];
+	const values: (string | number)[] = [];
+
+	if (data.username !== undefined) {
+		updates.push("username = ?");
+		values.push(data.username);
+	}
+	if (data.password_hash !== undefined) {
+		updates.push("password_hash = ?");
+		values.push(data.password_hash);
+	}
+
+	if (updates.length === 0) return existing;
+
+	updates.push("updated_at = ?");
+	values.push(now());
+	values.push(id);
+
+	try {
+		db.run(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`, values);
+		return getUserById(id);
+	} catch {
+		return null;
+	}
+}
+
 // Session operations
 export interface Session {
 	id: string;
