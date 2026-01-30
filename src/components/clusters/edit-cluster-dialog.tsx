@@ -41,6 +41,7 @@ export function EditClusterDialog({
 	const [name, setName] = useState(cluster.name);
 	const [urls, setUrls] = useState<string[]>(cluster.urls);
 	const [natsUrls, setNatsUrls] = useState<string[]>(cluster.natsUrls || [""]);
+	const [monitoringUrls, setMonitoringUrls] = useState<string[]>(cluster.monitoringUrls || [""]);
 	const [authType, setAuthType] = useState<AuthType>(cluster.authType);
 	const [token, setToken] = useState("");
 	const [username, setUsername] = useState("");
@@ -54,6 +55,7 @@ export function EditClusterDialog({
 			setName(cluster.name);
 			setUrls(cluster.urls.length > 0 ? cluster.urls : [""]);
 			setNatsUrls(cluster.natsUrls && cluster.natsUrls.length > 0 ? cluster.natsUrls : [""]);
+			setMonitoringUrls(cluster.monitoringUrls && cluster.monitoringUrls.length > 0 ? cluster.monitoringUrls : [""]);
 			setAuthType(cluster.authType);
 			setToken("");
 			setUsername("");
@@ -135,6 +137,41 @@ export function EditClusterDialog({
 		setNatsUrls(newUrls);
 	};
 
+	const addMonitoringUrl = () => {
+		if (monitoringUrls.length < 10) {
+			setMonitoringUrls([...monitoringUrls, ""]);
+		}
+	};
+
+	const removeMonitoringUrl = (index: number) => {
+		if (monitoringUrls.length > 1) {
+			setMonitoringUrls(monitoringUrls.filter((_, i) => i !== index));
+		}
+	};
+
+	const updateMonitoringUrl = (index: number, value: string) => {
+		if (value.includes(",")) {
+			const pastedUrls = value
+				.split(",")
+				.map((url) => url.trim())
+				.filter((url) => url !== "");
+
+			if (pastedUrls.length > 0) {
+				const newUrls = [...monitoringUrls];
+				newUrls[index] = pastedUrls[0];
+				for (let i = 1; i < pastedUrls.length && newUrls.length < 10; i++) {
+					newUrls.splice(index + i, 0, pastedUrls[i]);
+				}
+				setMonitoringUrls(newUrls);
+				return;
+			}
+		}
+
+		const newUrls = [...monitoringUrls];
+		newUrls[index] = value;
+		setMonitoringUrls(newUrls);
+	};
+
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		setError("");
@@ -144,6 +181,10 @@ export function EditClusterDialog({
 			.filter((url) => url !== "");
 
 		const validNatsUrls = natsUrls
+			.map((url) => url.trim())
+			.filter((url) => url !== "");
+
+		const validMonitoringUrls = monitoringUrls
 			.map((url) => url.trim())
 			.filter((url) => url !== "");
 
@@ -164,6 +205,7 @@ export function EditClusterDialog({
 				urls: validUrls,
 				natsUrls: validNatsUrls.length > 0 ? validNatsUrls : null,
 				authType,
+				monitoringUrls: validMonitoringUrls.length > 0 ? validMonitoringUrls : null,
 			};
 
 			// Only include auth fields if they have values (to allow keeping existing)
@@ -297,6 +339,48 @@ export function EditClusterDialog({
 							</div>
 							<p className="text-xs text-muted-foreground">
 								TCP URLs for server-side operations like file uploads
+							</p>
+						</div>
+
+						<div className="space-y-2">
+							<Label>Monitoring URLs (optional)</Label>
+							<div className="space-y-2">
+								{monitoringUrls.map((url, index) => (
+									<div key={`monitoring-url-${index}`} className="flex gap-2">
+										<Input
+											placeholder="http://localhost:8222"
+											value={url}
+											onChange={(e) => updateMonitoringUrl(index, e.target.value)}
+											disabled={isLoading}
+										/>
+										{monitoringUrls.length > 1 && (
+											<Button
+												type="button"
+												variant="outline"
+												size="icon"
+												onClick={() => removeMonitoringUrl(index)}
+												disabled={isLoading}
+											>
+												<Trash2 className="h-4 w-4" />
+											</Button>
+										)}
+									</div>
+								))}
+								{monitoringUrls.length < 10 && (
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={addMonitoringUrl}
+										disabled={isLoading}
+									>
+										<Plus className="mr-2 h-4 w-4" />
+										Add URL
+									</Button>
+								)}
+							</div>
+							<p className="text-xs text-muted-foreground">
+								HTTP monitoring endpoints for server stats (e.g., http://localhost:8222)
 							</p>
 						</div>
 

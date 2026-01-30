@@ -12,6 +12,7 @@ A self-hostable NATS cluster manager with a modern, slick dashboard interface.
 - **UI**: Shadcn UI (New York style) + Tailwind CSS 4
 - **Icons**: Lucide React
 - **Validation**: Zod
+- **Charts**: Recharts (for real-time monitoring charts)
 - **Runtime**: Bun
 
 ## Architecture Overview
@@ -106,12 +107,12 @@ A self-hostable NATS cluster manager with a modern, slick dashboard interface.
 - [x] 8.3 Implement file upload/download
 - [x] 8.4 Add object metadata viewer
 
-### Phase 9: Monitoring & Metrics
-- [ ] 9.1 Create connections monitor page
-- [ ] 9.2 Build subscriptions viewer
-- [ ] 9.3 Add real-time message rate charts
-- [ ] 9.4 Implement server health checks
-- [ ] 9.5 Create alerts/notifications system
+### Phase 9: Monitoring & Metrics ✅ COMPLETED
+- [x] 9.1 Create connections monitor page
+- [x] 9.2 Build subscriptions viewer
+- [x] 9.3 Add real-time message rate charts
+- [x] 9.4 Implement server health checks
+- [x] 9.5 Create alerts/notifications system
 
 ### Phase 10: Settings & Polish
 - [ ] 10.1 Create settings page ✅ (basic version done)
@@ -124,7 +125,7 @@ A self-hostable NATS cluster manager with a modern, slick dashboard interface.
 
 ## Current Progress
 
-**Status**: Phases 5, 6, 7 & 8 Complete - Ready for Phase 9 (Monitoring) or Phase 10 (Polish)
+**Status**: Phase 9 Complete - Ready for Phase 10 (Polish)
 **Last Updated**: 2026-01-30
 
 ### Completed Files
@@ -132,13 +133,14 @@ A self-hostable NATS cluster manager with a modern, slick dashboard interface.
 ```
 src/
 ├── components/
-│   ├── ui/                         # Shadcn components (22 components)
+│   ├── ui/                         # Shadcn components (24 components)
 │   │   ├── button.tsx, card.tsx, dialog.tsx, dropdown-menu.tsx
 │   │   ├── avatar.tsx, badge.tsx, tabs.tsx, sonner.tsx
 │   │   ├── skeleton.tsx, separator.tsx, scroll-area.tsx
 │   │   ├── sheet.tsx, tooltip.tsx, popover.tsx, table.tsx
 │   │   ├── sidebar.tsx, breadcrumb.tsx, input.tsx, label.tsx
 │   │   ├── select.tsx, switch.tsx, slider.tsx, textarea.tsx
+│   │   ├── checkbox.tsx, progress.tsx
 │   ├── layout/
 │   │   ├── app-sidebar.tsx         # Main sidebar navigation with logout
 │   │   └── app-header.tsx          # Page header with breadcrumbs
@@ -192,6 +194,12 @@ src/
 │   ├── layout/
 │   │   ├── app-sidebar.tsx
 │   │   └── app-header.tsx
+│   ├── monitoring/            # Monitoring components
+│   │   ├── overview-tab.tsx   # Health + charts
+│   │   ├── connections-tab.tsx
+│   │   ├── subscriptions-tab.tsx
+│   │   ├── alerts-tab.tsx
+│   │   └── create-alert-dialog.tsx
 │   ├── theme-provider.tsx
 │   └── theme-toggle.tsx
 ├── routes/
@@ -216,6 +224,7 @@ src/
 │       │   ├── index.tsx      # Object Store buckets list
 │       │   └── $clusterId/
 │       │       └── $bucket.tsx # Object browser with upload/download
+│       ├── monitoring.tsx     # Monitoring page with tabs
 │       └── settings.tsx
 ├── lib/
 │   ├── utils.ts
@@ -233,6 +242,7 @@ server/
     ├── auth.ts
     ├── clusters.ts
     ├── consumers.ts
+    ├── monitoring.ts          # Monitoring API endpoints
     ├── streams.ts
     ├── kv.ts
     ├── objectstore.ts
@@ -277,6 +287,10 @@ server/
   - Cluster configuration storage (add/edit/delete clusters, store credentials)
   - Providing connection info to frontend
   - **Object Store file uploads** (due to browser btoa encoding limitations with binary data in nats.ws)
+  - **Monitoring API** (proxies NATS HTTP monitoring endpoints at port 8222)
+    - Supports multiple monitoring URLs per cluster (for multi-server clusters)
+    - Aggregates stats from selected servers (connections summed, CPU/memory per-server)
+    - Server selector UI allows choosing which servers to include in view
 
 **IMPORTANT**: Prefer frontend direct connections for NATS operations. The exception is Object Store file uploads which use the backend API at `/api/objectstore/cluster/:id/bucket/:name/upload` because nats.ws has issues encoding binary data with btoa. The backend uses the native `nats` package (not `nats.ws`) for uploads to avoid this issue.
 - SQLite database stored in `data/nats-eye.db` (auto-created on first run)
@@ -307,11 +321,38 @@ CREATE TABLE sessions (
 CREATE TABLE clusters (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  urls TEXT NOT NULL,              -- JSON array of server URLs
-  credentials TEXT,                -- Optional: encrypted credentials
+  urls TEXT NOT NULL,              -- JSON array of WebSocket URLs
+  nats_urls TEXT,                  -- JSON array of NATS TCP URLs (optional)
+  auth_type TEXT NOT NULL DEFAULT 'none',
   token TEXT,                      -- Optional: auth token
+  username TEXT,
+  password TEXT,
+  monitoring_urls TEXT,            -- JSON array of HTTP monitoring endpoints (e.g., http://localhost:8222)
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
+);
+
+-- Alerts table (monitoring alert configurations)
+CREATE TABLE alerts (
+  id TEXT PRIMARY KEY,
+  cluster_id TEXT NOT NULL REFERENCES clusters(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  metric TEXT NOT NULL,            -- connections, subscriptions, slow_consumers, in_msgs_rate, out_msgs_rate
+  condition TEXT NOT NULL,         -- gt, lt, gte, lte
+  threshold REAL NOT NULL,
+  enabled INTEGER DEFAULT 1,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+-- Alert events table (alert history)
+CREATE TABLE alert_events (
+  id TEXT PRIMARY KEY,
+  alert_id TEXT NOT NULL REFERENCES alerts(id) ON DELETE CASCADE,
+  status TEXT NOT NULL,            -- triggered, resolved
+  value REAL NOT NULL,
+  message TEXT,
+  created_at INTEGER NOT NULL
 );
 
 -- Settings table (app configuration)
@@ -343,6 +384,4 @@ CREATE TABLE settings (
 
 ## Next Steps
 
-Options:
-- **Phase 9 (Monitoring)**: Connection monitor, subscriptions viewer, charts
 - **Phase 10 (Polish)**: Keyboard shortcuts, data export, UI improvements

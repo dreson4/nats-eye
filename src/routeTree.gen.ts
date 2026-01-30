@@ -14,6 +14,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppMonitoringRouteImport } from './routes/_app/monitoring'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppClustersRouteImport } from './routes/_app/clusters'
 import { Route as AppStreamsIndexRouteImport } from './routes/_app/streams/index'
@@ -47,6 +48,11 @@ const IndexRoute = IndexRouteImport.update({
 const AppSettingsRoute = AppSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMonitoringRoute = AppMonitoringRouteImport.update({
+  id: '/monitoring',
+  path: '/monitoring',
   getParentRoute: () => AppRoute,
 } as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
@@ -108,6 +114,7 @@ export interface FileRoutesByFullPath {
   '/setup': typeof SetupRoute
   '/clusters': typeof AppClustersRoute
   '/dashboard': typeof AppDashboardRoute
+  '/monitoring': typeof AppMonitoringRoute
   '/settings': typeof AppSettingsRoute
   '/consumers/': typeof AppConsumersIndexRoute
   '/kv/': typeof AppKvIndexRoute
@@ -124,6 +131,7 @@ export interface FileRoutesByTo {
   '/setup': typeof SetupRoute
   '/clusters': typeof AppClustersRoute
   '/dashboard': typeof AppDashboardRoute
+  '/monitoring': typeof AppMonitoringRoute
   '/settings': typeof AppSettingsRoute
   '/consumers': typeof AppConsumersIndexRoute
   '/kv': typeof AppKvIndexRoute
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/setup': typeof SetupRoute
   '/_app/clusters': typeof AppClustersRoute
   '/_app/dashboard': typeof AppDashboardRoute
+  '/_app/monitoring': typeof AppMonitoringRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/consumers/': typeof AppConsumersIndexRoute
   '/_app/kv/': typeof AppKvIndexRoute
@@ -160,6 +169,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/clusters'
     | '/dashboard'
+    | '/monitoring'
     | '/settings'
     | '/consumers/'
     | '/kv/'
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/clusters'
     | '/dashboard'
+    | '/monitoring'
     | '/settings'
     | '/consumers'
     | '/kv'
@@ -193,6 +204,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/_app/clusters'
     | '/_app/dashboard'
+    | '/_app/monitoring'
     | '/_app/settings'
     | '/_app/consumers/'
     | '/_app/kv/'
@@ -246,6 +258,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/monitoring': {
+      id: '/_app/monitoring'
+      path: '/monitoring'
+      fullPath: '/monitoring'
+      preLoaderRoute: typeof AppMonitoringRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/dashboard': {
@@ -324,6 +343,7 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppClustersRoute: typeof AppClustersRoute
   AppDashboardRoute: typeof AppDashboardRoute
+  AppMonitoringRoute: typeof AppMonitoringRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppConsumersIndexRoute: typeof AppConsumersIndexRoute
   AppKvIndexRoute: typeof AppKvIndexRoute
@@ -338,6 +358,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppClustersRoute: AppClustersRoute,
   AppDashboardRoute: AppDashboardRoute,
+  AppMonitoringRoute: AppMonitoringRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppConsumersIndexRoute: AppConsumersIndexRoute,
   AppKvIndexRoute: AppKvIndexRoute,

@@ -58,6 +58,7 @@ export interface ClusterData {
 	authType: AuthType;
 	hasToken: boolean;
 	hasUserPass: boolean;
+	monitoringUrls: string[] | null;
 	createdAt: number;
 	updatedAt: number;
 }
@@ -92,6 +93,7 @@ export const clustersApi = {
 		token?: string;
 		username?: string;
 		password?: string;
+		monitoringUrls?: string[];
 	}) =>
 		request<ClusterData>("/clusters", {
 			method: "POST",
@@ -108,6 +110,7 @@ export const clustersApi = {
 			token?: string;
 			username?: string;
 			password?: string;
+			monitoringUrls?: string[] | null;
 		},
 	) =>
 		request<ClusterData>(`/clusters/${id}`, {
@@ -460,4 +463,255 @@ export const kvApi = {
 		request<{ success: boolean }>(`/kv/cluster/${clusterId}/bucket/${bucketName}/key/${encodeURIComponent(key)}/purge`, {
 			method: "POST",
 		}),
+};
+
+// Monitoring types - Aggregated responses from multiple servers
+
+export interface ServerVarz {
+	url: string;
+	server_name: string;
+	version: string;
+	uptime: string;
+	cpu: number;
+	mem: number;
+	connections: number;
+	subscriptions: number;
+	slow_consumers: number;
+	in_msgs: number;
+	out_msgs: number;
+	in_bytes: number;
+	out_bytes: number;
+	error?: string;
+}
+
+export interface AggregatedVarz {
+	servers: ServerVarz[];
+	totals: {
+		connections: number;
+		total_connections: number;
+		subscriptions: number;
+		slow_consumers: number;
+		in_msgs: number;
+		out_msgs: number;
+		in_bytes: number;
+		out_bytes: number;
+		routes: number;
+		remotes: number;
+		leafnodes: number;
+	};
+	jetstream?: {
+		memory: number;
+		storage: number;
+		reserved_memory: number;
+		reserved_storage: number;
+		accounts: number;
+		api_total: number;
+		api_errors: number;
+	};
+}
+
+export interface NatsConnection {
+	cid: number;
+	kind: string;
+	type: string;
+	ip: string;
+	port: number;
+	start: string;
+	last_activity: string;
+	rtt: string;
+	uptime: string;
+	idle: string;
+	pending_bytes: number;
+	in_msgs: number;
+	out_msgs: number;
+	in_bytes: number;
+	out_bytes: number;
+	subscriptions: number;
+	name?: string;
+	lang?: string;
+	version?: string;
+	authorized_user?: string;
+	account?: string;
+	server_url: string;
+}
+
+export interface ServerConnz {
+	url: string;
+	num_connections: number;
+	error?: string;
+}
+
+export interface AggregatedConnz {
+	servers: ServerConnz[];
+	total_connections: number;
+	connections: NatsConnection[];
+}
+
+export interface ServerSubsz {
+	url: string;
+	num_subscriptions: number;
+	num_cache: number;
+	cache_hit_rate: number;
+	error?: string;
+}
+
+export interface AggregatedSubsz {
+	servers: ServerSubsz[];
+	totals: {
+		num_subscriptions: number;
+		num_cache: number;
+		num_inserts: number;
+		num_removes: number;
+		num_matches: number;
+		max_fanout: number;
+		avg_fanout: number;
+	};
+}
+
+export interface ServerHealth {
+	url: string;
+	status: string;
+	error?: string;
+}
+
+export interface AggregatedHealth {
+	servers: ServerHealth[];
+	overall_status: "ok" | "degraded" | "error";
+	healthy_count: number;
+	total_count: number;
+}
+
+export type AlertMetric = "connections" | "subscriptions" | "slow_consumers" | "in_msgs_rate" | "out_msgs_rate";
+export type AlertCondition = "gt" | "lt" | "gte" | "lte";
+export type AlertEventStatus = "triggered" | "resolved";
+
+export interface Alert {
+	id: string;
+	cluster_id: string;
+	name: string;
+	metric: AlertMetric;
+	condition: AlertCondition;
+	threshold: number;
+	enabled: boolean;
+	created_at: number;
+	updated_at: number;
+}
+
+export interface AlertEvent {
+	id: string;
+	alert_id: string;
+	status: AlertEventStatus;
+	value: number;
+	message: string | null;
+	created_at: number;
+}
+
+export interface MonitoringCluster {
+	id: string;
+	name: string;
+	monitoringUrls: string[];
+}
+
+// Monitoring API
+export const monitoringApi = {
+	// Clusters with monitoring enabled
+	getClusters: () => request<MonitoringCluster[]>("/monitoring/clusters"),
+
+	// Varz (server stats) - aggregated from selected servers
+	getVarz: (clusterId: string, selectedUrls?: string[]) => {
+		const params = new URLSearchParams();
+		if (selectedUrls && selectedUrls.length > 0) {
+			params.set("urls", selectedUrls.join(","));
+		}
+		const query = params.toString();
+		return request<AggregatedVarz>(`/monitoring/cluster/${clusterId}/varz${query ? `?${query}` : ""}`);
+	},
+
+	// Connz (connections) - aggregated from selected servers
+	getConnz: (clusterId: string, selectedUrls?: string[]) => {
+		const params = new URLSearchParams();
+		if (selectedUrls && selectedUrls.length > 0) {
+			params.set("urls", selectedUrls.join(","));
+		}
+		const query = params.toString();
+		return request<AggregatedConnz>(`/monitoring/cluster/${clusterId}/connz${query ? `?${query}` : ""}`);
+	},
+
+	// Subsz (subscriptions) - aggregated from selected servers
+	getSubsz: (clusterId: string, selectedUrls?: string[]) => {
+		const params = new URLSearchParams();
+		if (selectedUrls && selectedUrls.length > 0) {
+			params.set("urls", selectedUrls.join(","));
+		}
+		const query = params.toString();
+		return request<AggregatedSubsz>(`/monitoring/cluster/${clusterId}/subsz${query ? `?${query}` : ""}`);
+	},
+
+	// Health check - aggregated from selected servers
+	getHealth: (clusterId: string, selectedUrls?: string[]) => {
+		const params = new URLSearchParams();
+		if (selectedUrls && selectedUrls.length > 0) {
+			params.set("urls", selectedUrls.join(","));
+		}
+		const query = params.toString();
+		return request<AggregatedHealth>(`/monitoring/cluster/${clusterId}/health${query ? `?${query}` : ""}`);
+	},
+
+	// Check alerts
+	checkAlerts: (clusterId: string) =>
+		request<{
+			checked: number;
+			triggered: number;
+			triggeredAlerts: Array<{ alertId: string; alertName: string; value: number }>;
+		}>(`/monitoring/cluster/${clusterId}/check-alerts`, { method: "POST" }),
+
+	// Alerts CRUD
+	getAlerts: (clusterId?: string) => {
+		const query = clusterId ? `?clusterId=${clusterId}` : "";
+		return request<Alert[]>(`/monitoring/alerts${query}`);
+	},
+
+	getAlert: (id: string) => request<Alert>(`/monitoring/alerts/${id}`),
+
+	createAlert: (data: {
+		clusterId: string;
+		name: string;
+		metric: AlertMetric;
+		condition: AlertCondition;
+		threshold: number;
+		enabled?: boolean;
+	}) =>
+		request<Alert>("/monitoring/alerts", {
+			method: "POST",
+			body: JSON.stringify(data),
+		}),
+
+	updateAlert: (
+		id: string,
+		data: {
+			name?: string;
+			metric?: AlertMetric;
+			condition?: AlertCondition;
+			threshold?: number;
+			enabled?: boolean;
+		},
+	) =>
+		request<Alert>(`/monitoring/alerts/${id}`, {
+			method: "PATCH",
+			body: JSON.stringify(data),
+		}),
+
+	deleteAlert: (id: string) =>
+		request<{ success: boolean }>(`/monitoring/alerts/${id}`, { method: "DELETE" }),
+
+	// Alert events
+	getAlertEvents: (alertId: string, limit?: number) => {
+		const query = limit ? `?limit=${limit}` : "";
+		return request<AlertEvent[]>(`/monitoring/alerts/${alertId}/events${query}`);
+	},
+
+	getRecentEvents: (limit?: number) => {
+		const query = limit ? `?limit=${limit}` : "";
+		return request<AlertEvent[]>(`/monitoring/events/recent${query}`);
+	},
 };

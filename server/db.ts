@@ -42,8 +42,32 @@ function initializeSchema(db: Database) {
 			token TEXT,
 			username TEXT,
 			password TEXT,
+			monitoring_urls TEXT,
 			created_at INTEGER NOT NULL,
 			updated_at INTEGER NOT NULL
+		);
+
+		-- Alerts table (monitoring alert configurations)
+		CREATE TABLE IF NOT EXISTS alerts (
+			id TEXT PRIMARY KEY,
+			cluster_id TEXT NOT NULL REFERENCES clusters(id) ON DELETE CASCADE,
+			name TEXT NOT NULL,
+			metric TEXT NOT NULL,
+			condition TEXT NOT NULL,
+			threshold REAL NOT NULL,
+			enabled INTEGER DEFAULT 1,
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		);
+
+		-- Alert events table (alert history)
+		CREATE TABLE IF NOT EXISTS alert_events (
+			id TEXT PRIMARY KEY,
+			alert_id TEXT NOT NULL REFERENCES alerts(id) ON DELETE CASCADE,
+			status TEXT NOT NULL,
+			value REAL NOT NULL,
+			message TEXT,
+			created_at INTEGER NOT NULL
 		);
 
 		-- Settings table (app configuration)
@@ -55,6 +79,9 @@ function initializeSchema(db: Database) {
 		-- Create indexes
 		CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 		CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+		CREATE INDEX IF NOT EXISTS idx_alerts_cluster_id ON alerts(cluster_id);
+		CREATE INDEX IF NOT EXISTS idx_alert_events_alert_id ON alert_events(alert_id);
+		CREATE INDEX IF NOT EXISTS idx_alert_events_created_at ON alert_events(created_at);
 	`);
 
 	// Run migrations for existing databases
@@ -66,9 +93,30 @@ function runMigrations(db: Database) {
 	// Check if nats_urls column exists in clusters table
 	const columns = db.query<{ name: string }, []>("PRAGMA table_info(clusters)").all();
 	const hasNatsUrls = columns.some((col) => col.name === "nats_urls");
+	const hasMonitoringUrl = columns.some((col) => col.name === "monitoring_url");
+	const hasMonitoringUrls = columns.some((col) => col.name === "monitoring_urls");
 
 	if (!hasNatsUrls) {
 		db.exec("ALTER TABLE clusters ADD COLUMN nats_urls TEXT");
+	}
+
+	// Migrate from single monitoring_url to monitoring_urls array
+	if (hasMonitoringUrl && !hasMonitoringUrls) {
+		db.exec("ALTER TABLE clusters ADD COLUMN monitoring_urls TEXT");
+		// Migrate existing data
+		const clusters = db.query<{ id: string; monitoring_url: string | null }, []>(
+			"SELECT id, monitoring_url FROM clusters WHERE monitoring_url IS NOT NULL"
+		).all();
+		for (const cluster of clusters) {
+			if (cluster.monitoring_url) {
+				db.run("UPDATE clusters SET monitoring_urls = ? WHERE id = ?", [
+					JSON.stringify([cluster.monitoring_url]),
+					cluster.id,
+				]);
+			}
+		}
+	} else if (!hasMonitoringUrls) {
+		db.exec("ALTER TABLE clusters ADD COLUMN monitoring_urls TEXT");
 	}
 }
 
@@ -227,6 +275,7 @@ export interface Cluster {
 	token: string | null;
 	username: string | null;
 	password: string | null;
+	monitoring_urls: string[] | null;
 	created_at: number;
 	updated_at: number;
 }
@@ -240,6 +289,7 @@ interface ClusterRow {
 	token: string | null;
 	username: string | null;
 	password: string | null;
+	monitoring_urls: string | null;
 	created_at: number;
 	updated_at: number;
 }
@@ -250,6 +300,7 @@ function rowToCluster(row: ClusterRow): Cluster {
 		auth_type: row.auth_type as AuthType,
 		urls: JSON.parse(row.urls),
 		nats_urls: row.nats_urls ? JSON.parse(row.nats_urls) : null,
+		monitoring_urls: row.monitoring_urls ? JSON.parse(row.monitoring_urls) : null,
 	};
 }
 
@@ -261,14 +312,15 @@ export function createCluster(
 	username?: string,
 	password?: string,
 	natsUrls?: string[],
+	monitoringUrls?: string[],
 ): Cluster {
 	const db = getDb();
 	const id = generateId();
 	const timestamp = now();
 
 	db.run(
-		`INSERT INTO clusters (id, name, urls, nats_urls, auth_type, token, username, password, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO clusters (id, name, urls, nats_urls, auth_type, token, username, password, monitoring_urls, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[
 			id,
 			name,
@@ -278,6 +330,7 @@ export function createCluster(
 			token ?? null,
 			username ?? null,
 			password ?? null,
+			monitoringUrls ? JSON.stringify(monitoringUrls) : null,
 			timestamp,
 			timestamp,
 		],
@@ -292,6 +345,7 @@ export function createCluster(
 		token: token ?? null,
 		username: username ?? null,
 		password: password ?? null,
+		monitoring_urls: monitoringUrls ?? null,
 		created_at: timestamp,
 		updated_at: timestamp,
 	};
@@ -315,7 +369,7 @@ export function getAllClusters(): Cluster[] {
 
 export function updateCluster(
 	id: string,
-	data: Partial<Pick<Cluster, "name" | "urls" | "nats_urls" | "auth_type" | "token" | "username" | "password">>,
+	data: Partial<Pick<Cluster, "name" | "urls" | "nats_urls" | "auth_type" | "token" | "username" | "password" | "monitoring_urls">>,
 ): Cluster | null {
 	const db = getDb();
 	const existing = getCluster(id);
@@ -351,6 +405,10 @@ export function updateCluster(
 	if (data.password !== undefined) {
 		updates.push("password = ?");
 		values.push(data.password);
+	}
+	if (data.monitoring_urls !== undefined) {
+		updates.push("monitoring_urls = ?");
+		values.push(data.monitoring_urls ? JSON.stringify(data.monitoring_urls) : null);
 	}
 
 	if (updates.length === 0) return existing;
@@ -392,4 +450,223 @@ export function setSetting(key: string, value: string): void {
 export function deleteSetting(key: string): void {
 	const db = getDb();
 	db.run("DELETE FROM settings WHERE key = ?", [key]);
+}
+
+// Alert operations
+export type AlertMetric = "connections" | "subscriptions" | "slow_consumers" | "in_msgs_rate" | "out_msgs_rate";
+export type AlertCondition = "gt" | "lt" | "gte" | "lte";
+
+export interface Alert {
+	id: string;
+	cluster_id: string;
+	name: string;
+	metric: AlertMetric;
+	condition: AlertCondition;
+	threshold: number;
+	enabled: boolean;
+	created_at: number;
+	updated_at: number;
+}
+
+interface AlertRow {
+	id: string;
+	cluster_id: string;
+	name: string;
+	metric: string;
+	condition: string;
+	threshold: number;
+	enabled: number;
+	created_at: number;
+	updated_at: number;
+}
+
+function rowToAlert(row: AlertRow): Alert {
+	return {
+		...row,
+		metric: row.metric as AlertMetric,
+		condition: row.condition as AlertCondition,
+		enabled: row.enabled === 1,
+	};
+}
+
+export function createAlert(
+	clusterId: string,
+	name: string,
+	metric: AlertMetric,
+	condition: AlertCondition,
+	threshold: number,
+	enabled = true,
+): Alert {
+	const db = getDb();
+	const id = generateId();
+	const timestamp = now();
+
+	db.run(
+		`INSERT INTO alerts (id, cluster_id, name, metric, condition, threshold, enabled, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		[id, clusterId, name, metric, condition, threshold, enabled ? 1 : 0, timestamp, timestamp],
+	);
+
+	return {
+		id,
+		cluster_id: clusterId,
+		name,
+		metric,
+		condition,
+		threshold,
+		enabled,
+		created_at: timestamp,
+		updated_at: timestamp,
+	};
+}
+
+export function getAlert(id: string): Alert | null {
+	const db = getDb();
+	const row = db
+		.query<AlertRow, [string]>("SELECT * FROM alerts WHERE id = ?")
+		.get(id);
+	return row ? rowToAlert(row) : null;
+}
+
+export function getAlertsByCluster(clusterId: string): Alert[] {
+	const db = getDb();
+	const rows = db
+		.query<AlertRow, [string]>("SELECT * FROM alerts WHERE cluster_id = ? ORDER BY name")
+		.all(clusterId);
+	return rows.map(rowToAlert);
+}
+
+export function getAllAlerts(): Alert[] {
+	const db = getDb();
+	const rows = db
+		.query<AlertRow, []>("SELECT * FROM alerts ORDER BY name")
+		.all();
+	return rows.map(rowToAlert);
+}
+
+export function updateAlert(
+	id: string,
+	data: Partial<Pick<Alert, "name" | "metric" | "condition" | "threshold" | "enabled">>,
+): Alert | null {
+	const db = getDb();
+	const existing = getAlert(id);
+	if (!existing) return null;
+
+	const updates: string[] = [];
+	const values: (string | number | null)[] = [];
+
+	if (data.name !== undefined) {
+		updates.push("name = ?");
+		values.push(data.name);
+	}
+	if (data.metric !== undefined) {
+		updates.push("metric = ?");
+		values.push(data.metric);
+	}
+	if (data.condition !== undefined) {
+		updates.push("condition = ?");
+		values.push(data.condition);
+	}
+	if (data.threshold !== undefined) {
+		updates.push("threshold = ?");
+		values.push(data.threshold);
+	}
+	if (data.enabled !== undefined) {
+		updates.push("enabled = ?");
+		values.push(data.enabled ? 1 : 0);
+	}
+
+	if (updates.length === 0) return existing;
+
+	updates.push("updated_at = ?");
+	values.push(now());
+	values.push(id);
+
+	db.run(`UPDATE alerts SET ${updates.join(", ")} WHERE id = ?`, values);
+	return getAlert(id);
+}
+
+export function deleteAlert(id: string): boolean {
+	const db = getDb();
+	const result = db.run("DELETE FROM alerts WHERE id = ?", [id]);
+	return result.changes > 0;
+}
+
+// Alert events operations
+export type AlertEventStatus = "triggered" | "resolved";
+
+export interface AlertEvent {
+	id: string;
+	alert_id: string;
+	status: AlertEventStatus;
+	value: number;
+	message: string | null;
+	created_at: number;
+}
+
+interface AlertEventRow {
+	id: string;
+	alert_id: string;
+	status: string;
+	value: number;
+	message: string | null;
+	created_at: number;
+}
+
+function rowToAlertEvent(row: AlertEventRow): AlertEvent {
+	return {
+		...row,
+		status: row.status as AlertEventStatus,
+	};
+}
+
+export function createAlertEvent(
+	alertId: string,
+	status: AlertEventStatus,
+	value: number,
+	message?: string,
+): AlertEvent {
+	const db = getDb();
+	const id = generateId();
+	const timestamp = now();
+
+	db.run(
+		`INSERT INTO alert_events (id, alert_id, status, value, message, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?)`,
+		[id, alertId, status, value, message ?? null, timestamp],
+	);
+
+	return {
+		id,
+		alert_id: alertId,
+		status,
+		value,
+		message: message ?? null,
+		created_at: timestamp,
+	};
+}
+
+export function getAlertEvents(alertId: string, limit = 50): AlertEvent[] {
+	const db = getDb();
+	const rows = db
+		.query<AlertEventRow, [string, number]>(
+			"SELECT * FROM alert_events WHERE alert_id = ? ORDER BY created_at DESC LIMIT ?",
+		)
+		.all(alertId, limit);
+	return rows.map(rowToAlertEvent);
+}
+
+export function getRecentAlertEvents(limit = 100): AlertEvent[] {
+	const db = getDb();
+	const rows = db
+		.query<AlertEventRow, [number]>(
+			"SELECT * FROM alert_events ORDER BY created_at DESC LIMIT ?",
+		)
+		.all(limit);
+	return rows.map(rowToAlertEvent);
+}
+
+export function deleteAlertEventsByAlertId(alertId: string): void {
+	const db = getDb();
+	db.run("DELETE FROM alert_events WHERE alert_id = ?", [alertId]);
 }

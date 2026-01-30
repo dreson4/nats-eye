@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
+	Activity,
 	Database,
 	Eye,
 	FolderArchive,
@@ -37,6 +38,11 @@ const navItems = [
 		title: "Clusters",
 		url: "/clusters",
 		icon: Server,
+	},
+	{
+		title: "Monitoring",
+		url: "/monitoring",
+		icon: Activity,
 	},
 ];
 

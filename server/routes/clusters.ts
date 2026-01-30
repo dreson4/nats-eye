@@ -35,6 +35,22 @@ const natsUrlSchema = z
 
 const authTypeSchema = z.enum(["none", "token", "userpass"]);
 
+const monitoringUrlSchema = z
+	.string()
+	.transform((url) => url.trim())
+	.refine((url) => url.length > 0, { message: "URL is required" })
+	.refine(
+		(url) => {
+			try {
+				const parsed = new URL(url);
+				return parsed.protocol === "http:" || parsed.protocol === "https:";
+			} catch {
+				return false;
+			}
+		},
+		{ message: "Must be a valid HTTP URL (http:// or https://)" },
+	);
+
 const createClusterSchema = z.object({
 	name: z.string().min(1).max(100),
 	urls: z.array(wsUrlSchema).min(1).max(10),
@@ -43,6 +59,7 @@ const createClusterSchema = z.object({
 	token: z.string().optional(),
 	username: z.string().optional(),
 	password: z.string().optional(),
+	monitoringUrls: z.array(monitoringUrlSchema).min(1).max(10).optional(),
 });
 
 const updateClusterSchema = z.object({
@@ -53,6 +70,7 @@ const updateClusterSchema = z.object({
 	token: z.string().optional(),
 	username: z.string().optional(),
 	password: z.string().optional(),
+	monitoringUrls: z.array(monitoringUrlSchema).min(1).max(10).optional().nullable(),
 });
 
 const testConnectionSchema = z.object({
@@ -96,6 +114,7 @@ function sanitizeCluster(cluster: ReturnType<typeof getCluster>) {
 		authType: cluster.auth_type,
 		hasToken: !!cluster.token,
 		hasUserPass: !!cluster.username && !!cluster.password,
+		monitoringUrls: cluster.monitoring_urls,
 		createdAt: cluster.created_at,
 		updatedAt: cluster.updated_at,
 	};
@@ -124,8 +143,8 @@ clusters.get("/:id", (c) => {
 
 // Create cluster
 clusters.post("/", zValidator("json", createClusterSchema), (c) => {
-	const { name, urls, natsUrls, authType, token, username, password } = c.req.valid("json");
-	const cluster = createCluster(name, urls, authType, token, username, password, natsUrls);
+	const { name, urls, natsUrls, authType, token, username, password, monitoringUrls } = c.req.valid("json");
+	const cluster = createCluster(name, urls, authType, token, username, password, natsUrls, monitoringUrls);
 
 	return c.json(sanitizeCluster(cluster), 201);
 });
@@ -143,6 +162,7 @@ clusters.patch("/:id", zValidator("json", updateClusterSchema), (c) => {
 		token: data.token,
 		username: data.username,
 		password: data.password,
+		monitoring_urls: data.monitoringUrls,
 	});
 
 	if (!updated) {

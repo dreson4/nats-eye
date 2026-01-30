@@ -40,6 +40,7 @@ export function AddClusterDialog({ trigger, onSuccess }: AddClusterDialogProps) 
 	const [name, setName] = useState("");
 	const [urls, setUrls] = useState<string[]>([""]);
 	const [natsUrls, setNatsUrls] = useState<string[]>([""]);
+	const [monitoringUrls, setMonitoringUrls] = useState<string[]>([""]);
 	const [authType, setAuthType] = useState<AuthType>("none");
 	const [token, setToken] = useState("");
 	const [username, setUsername] = useState("");
@@ -53,6 +54,7 @@ export function AddClusterDialog({ trigger, onSuccess }: AddClusterDialogProps) 
 		setName("");
 		setUrls([""]);
 		setNatsUrls([""]);
+		setMonitoringUrls([""]);
 		setAuthType("none");
 		setToken("");
 		setUsername("");
@@ -144,6 +146,41 @@ export function AddClusterDialog({ trigger, onSuccess }: AddClusterDialogProps) 
 		setNatsUrls(newUrls);
 	};
 
+	const addMonitoringUrl = () => {
+		if (monitoringUrls.length < 10) {
+			setMonitoringUrls([...monitoringUrls, ""]);
+		}
+	};
+
+	const removeMonitoringUrl = (index: number) => {
+		if (monitoringUrls.length > 1) {
+			setMonitoringUrls(monitoringUrls.filter((_, i) => i !== index));
+		}
+	};
+
+	const updateMonitoringUrl = (index: number, value: string) => {
+		if (value.includes(",")) {
+			const pastedUrls = value
+				.split(",")
+				.map((url) => url.trim())
+				.filter((url) => url !== "");
+
+			if (pastedUrls.length > 0) {
+				const newUrls = [...monitoringUrls];
+				newUrls[index] = pastedUrls[0];
+				for (let i = 1; i < pastedUrls.length && newUrls.length < 10; i++) {
+					newUrls.splice(index + i, 0, pastedUrls[i]);
+				}
+				setMonitoringUrls(newUrls);
+				return;
+			}
+		}
+
+		const newUrls = [...monitoringUrls];
+		newUrls[index] = value;
+		setMonitoringUrls(newUrls);
+	};
+
 	const getAuthConfig = () => {
 		switch (authType) {
 			case "token":
@@ -190,6 +227,10 @@ export function AddClusterDialog({ trigger, onSuccess }: AddClusterDialogProps) 
 			.map((url) => url.trim())
 			.filter((url) => url !== "");
 
+		const validMonitoringUrls = monitoringUrls
+			.map((url) => url.trim())
+			.filter((url) => url !== "");
+
 		if (!name.trim()) {
 			setError("Name is required");
 			return;
@@ -217,6 +258,7 @@ export function AddClusterDialog({ trigger, onSuccess }: AddClusterDialogProps) 
 				urls: validUrls,
 				natsUrls: validNatsUrls.length > 0 ? validNatsUrls : undefined,
 				authType,
+				monitoringUrls: validMonitoringUrls.length > 0 ? validMonitoringUrls : undefined,
 				...getAuthConfig(),
 			});
 			await queryClient.invalidateQueries({ queryKey: ["clusters"] });
@@ -371,6 +413,48 @@ export function AddClusterDialog({ trigger, onSuccess }: AddClusterDialogProps) 
 							</div>
 							<p className="text-xs text-muted-foreground">
 								TCP URLs for server-side operations like file uploads (e.g., localhost:4222)
+							</p>
+						</div>
+
+						<div className="space-y-2">
+							<Label>Monitoring URLs (optional)</Label>
+							<div className="space-y-2">
+								{monitoringUrls.map((url, index) => (
+									<div key={`monitoring-url-${index}`} className="flex gap-2">
+										<Input
+											placeholder="http://localhost:8222"
+											value={url}
+											onChange={(e) => updateMonitoringUrl(index, e.target.value)}
+											disabled={isLoading}
+										/>
+										{monitoringUrls.length > 1 && (
+											<Button
+												type="button"
+												variant="outline"
+												size="icon"
+												onClick={() => removeMonitoringUrl(index)}
+												disabled={isLoading}
+											>
+												<Trash2 className="h-4 w-4" />
+											</Button>
+										)}
+									</div>
+								))}
+								{monitoringUrls.length < 10 && (
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={addMonitoringUrl}
+										disabled={isLoading}
+									>
+										<Plus className="mr-2 h-4 w-4" />
+										Add URL
+									</Button>
+								)}
+							</div>
+							<p className="text-xs text-muted-foreground">
+								HTTP monitoring endpoints for server stats (e.g., http://localhost:8222)
 							</p>
 						</div>
 
