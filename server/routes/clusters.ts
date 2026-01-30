@@ -12,7 +12,7 @@ import {
 } from "../db";
 
 // Zod schemas
-const clusterUrlSchema = z
+const wsUrlSchema = z
 	.string()
 	.transform((url) => url.trim())
 	.refine((url) => url.length > 0, { message: "URL is required" })
@@ -28,11 +28,17 @@ const clusterUrlSchema = z
 		{ message: "Must be a valid WebSocket URL (ws:// or wss://)" },
 	);
 
+const natsUrlSchema = z
+	.string()
+	.transform((url) => url.trim())
+	.refine((url) => url.length > 0, { message: "URL is required" });
+
 const authTypeSchema = z.enum(["none", "token", "userpass"]);
 
 const createClusterSchema = z.object({
 	name: z.string().min(1).max(100),
-	urls: z.array(clusterUrlSchema).min(1).max(10),
+	urls: z.array(wsUrlSchema).min(1).max(10),
+	natsUrls: z.array(natsUrlSchema).min(1).max(10).optional(),
 	authType: authTypeSchema.default("none"),
 	token: z.string().optional(),
 	username: z.string().optional(),
@@ -41,7 +47,8 @@ const createClusterSchema = z.object({
 
 const updateClusterSchema = z.object({
 	name: z.string().min(1).max(100).optional(),
-	urls: z.array(clusterUrlSchema).min(1).max(10).optional(),
+	urls: z.array(wsUrlSchema).min(1).max(10).optional(),
+	natsUrls: z.array(natsUrlSchema).min(1).max(10).optional().nullable(),
 	authType: authTypeSchema.optional(),
 	token: z.string().optional(),
 	username: z.string().optional(),
@@ -85,6 +92,7 @@ function sanitizeCluster(cluster: ReturnType<typeof getCluster>) {
 		id: cluster.id,
 		name: cluster.name,
 		urls: cluster.urls,
+		natsUrls: cluster.nats_urls,
 		authType: cluster.auth_type,
 		hasToken: !!cluster.token,
 		hasUserPass: !!cluster.username && !!cluster.password,
@@ -116,8 +124,8 @@ clusters.get("/:id", (c) => {
 
 // Create cluster
 clusters.post("/", zValidator("json", createClusterSchema), (c) => {
-	const { name, urls, authType, token, username, password } = c.req.valid("json");
-	const cluster = createCluster(name, urls, authType, token, username, password);
+	const { name, urls, natsUrls, authType, token, username, password } = c.req.valid("json");
+	const cluster = createCluster(name, urls, authType, token, username, password, natsUrls);
 
 	return c.json(sanitizeCluster(cluster), 201);
 });
@@ -130,6 +138,7 @@ clusters.patch("/:id", zValidator("json", updateClusterSchema), (c) => {
 	const updated = updateCluster(id, {
 		name: data.name,
 		urls: data.urls,
+		nats_urls: data.natsUrls,
 		auth_type: data.authType,
 		token: data.token,
 		username: data.username,

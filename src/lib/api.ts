@@ -54,6 +54,7 @@ export interface ClusterData {
 	id: string;
 	name: string;
 	urls: string[];
+	natsUrls: string[] | null;
 	authType: AuthType;
 	hasToken: boolean;
 	hasUserPass: boolean;
@@ -86,6 +87,7 @@ export const clustersApi = {
 	create: (data: {
 		name: string;
 		urls: string[];
+		natsUrls?: string[];
 		authType: AuthType;
 		token?: string;
 		username?: string;
@@ -101,6 +103,7 @@ export const clustersApi = {
 		data: {
 			name?: string;
 			urls?: string[];
+			natsUrls?: string[] | null;
 			authType?: AuthType;
 			token?: string;
 			username?: string;
@@ -377,6 +380,9 @@ export const consumersApi = {
 			method: "DELETE",
 		}),
 };
+
+// Object Store - All operations handled on frontend via direct nats.ws connections
+// Types kept for reference but API methods removed
 
 // KV types
 export interface KvBucketInfo {

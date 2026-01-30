@@ -100,11 +100,11 @@ A self-hostable NATS cluster manager with a modern, slick dashboard interface.
 - [x] 7.5 Display key history and revisions
 - [x] 7.6 Real-time key watching via direct nats.ws connection from frontend
 
-### Phase 8: Object Store (Bonus) ⬅️ NEXT
-- [ ] 8.1 Create object store buckets list
-- [ ] 8.2 Build object browser
-- [ ] 8.3 Implement file upload/download
-- [ ] 8.4 Add object metadata viewer
+### Phase 8: Object Store ✅ COMPLETED
+- [x] 8.1 Create object store buckets list
+- [x] 8.2 Build object browser
+- [x] 8.3 Implement file upload/download
+- [x] 8.4 Add object metadata viewer
 
 ### Phase 9: Monitoring & Metrics
 - [ ] 9.1 Create connections monitor page
@@ -124,7 +124,7 @@ A self-hostable NATS cluster manager with a modern, slick dashboard interface.
 
 ## Current Progress
 
-**Status**: Phases 5, 6 & 7 Complete - Ready for Phase 8 (Object Store) or Phase 9 (Monitoring)
+**Status**: Phases 5, 6, 7 & 8 Complete - Ready for Phase 9 (Monitoring) or Phase 10 (Polish)
 **Last Updated**: 2026-01-30
 
 ### Completed Files
@@ -212,6 +212,10 @@ src/
 │       │   ├── index.tsx      # KV buckets list
 │       │   └── $clusterId/
 │       │       └── $bucket.tsx # KV bucket detail with live watching
+│       ├── objectstore/
+│       │   ├── index.tsx      # Object Store buckets list
+│       │   └── $clusterId/
+│       │       └── $bucket.tsx # Object browser with upload/download
 │       └── settings.tsx
 ├── lib/
 │   ├── utils.ts
@@ -228,8 +232,10 @@ server/
 └── routes/
     ├── auth.ts
     ├── clusters.ts
+    ├── consumers.ts
     ├── streams.ts
     ├── kv.ts
+    ├── objectstore.ts
     └── stats.ts
 ```
 
@@ -257,13 +263,22 @@ server/
 
 ## Notes
 
-- **Real-time NATS operations happen on the frontend** via direct nats.ws connections
+- **NATS operations happen on the frontend** via direct nats.ws connections (with one exception)
 - Backend provides connection info (URLs, credentials) via `/api/clusters/:id/connect`
 - Frontend connects directly to NATS for:
   - Live message streaming (Streams)
   - Real-time key watching (KV)
   - Key put/delete operations (KV)
-- Backend handles CRUD for clusters, initial data loading, and history queries
+  - Object Store operations (list, download, delete, bucket creation)
+  - Bucket creation/deletion (KV, Object Store)
+  - Stream/Consumer CRUD operations
+- Backend handles:
+  - User authentication (login, session)
+  - Cluster configuration storage (add/edit/delete clusters, store credentials)
+  - Providing connection info to frontend
+  - **Object Store file uploads** (due to browser btoa encoding limitations with binary data in nats.ws)
+
+**IMPORTANT**: Prefer frontend direct connections for NATS operations. The exception is Object Store file uploads which use the backend API at `/api/objectstore/cluster/:id/bucket/:name/upload` because nats.ws has issues encoding binary data with btoa. The backend uses the native `nats` package (not `nats.ws`) for uploads to avoid this issue.
 - SQLite database stored in `data/nats-eye.db` (auto-created on first run)
 - Zero external dependencies for storage - `bun:sqlite` is built into Bun
 - Using nats.ws for WebSocket-based NATS connections (both frontend and backend)
@@ -329,6 +344,5 @@ CREATE TABLE settings (
 ## Next Steps
 
 Options:
-- **Phase 8 (Object Store)**: File storage with upload/download
 - **Phase 9 (Monitoring)**: Connection monitor, subscriptions viewer, charts
 - **Phase 10 (Polish)**: Keyboard shortcuts, data export, UI improvements

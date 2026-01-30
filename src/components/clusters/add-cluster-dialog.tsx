@@ -39,6 +39,7 @@ export function AddClusterDialog({ trigger, onSuccess }: AddClusterDialogProps) 
 	const [open, setOpen] = useState(false);
 	const [name, setName] = useState("");
 	const [urls, setUrls] = useState<string[]>([""]);
+	const [natsUrls, setNatsUrls] = useState<string[]>([""]);
 	const [authType, setAuthType] = useState<AuthType>("none");
 	const [token, setToken] = useState("");
 	const [username, setUsername] = useState("");
@@ -51,6 +52,7 @@ export function AddClusterDialog({ trigger, onSuccess }: AddClusterDialogProps) 
 	const resetForm = () => {
 		setName("");
 		setUrls([""]);
+		setNatsUrls([""]);
 		setAuthType("none");
 		setToken("");
 		setUsername("");
@@ -106,6 +108,42 @@ export function AddClusterDialog({ trigger, onSuccess }: AddClusterDialogProps) 
 		setTestResult(null);
 	};
 
+	const addNatsUrl = () => {
+		if (natsUrls.length < 10) {
+			setNatsUrls([...natsUrls, ""]);
+		}
+	};
+
+	const removeNatsUrl = (index: number) => {
+		if (natsUrls.length > 1) {
+			setNatsUrls(natsUrls.filter((_, i) => i !== index));
+		}
+	};
+
+	const updateNatsUrl = (index: number, value: string) => {
+		// Check if pasted value contains commas (multiple URLs)
+		if (value.includes(",")) {
+			const pastedUrls = value
+				.split(",")
+				.map((url) => url.trim())
+				.filter((url) => url !== "");
+
+			if (pastedUrls.length > 0) {
+				const newUrls = [...natsUrls];
+				newUrls[index] = pastedUrls[0];
+				for (let i = 1; i < pastedUrls.length && newUrls.length < 10; i++) {
+					newUrls.splice(index + i, 0, pastedUrls[i]);
+				}
+				setNatsUrls(newUrls);
+				return;
+			}
+		}
+
+		const newUrls = [...natsUrls];
+		newUrls[index] = value;
+		setNatsUrls(newUrls);
+	};
+
 	const getAuthConfig = () => {
 		switch (authType) {
 			case "token":
@@ -148,13 +186,17 @@ export function AddClusterDialog({ trigger, onSuccess }: AddClusterDialogProps) 
 			.map((url) => url.trim())
 			.filter((url) => url !== "");
 
+		const validNatsUrls = natsUrls
+			.map((url) => url.trim())
+			.filter((url) => url !== "");
+
 		if (!name.trim()) {
 			setError("Name is required");
 			return;
 		}
 
 		if (validUrls.length === 0) {
-			setError("At least one URL is required");
+			setError("At least one WebSocket URL is required");
 			return;
 		}
 
@@ -173,6 +215,7 @@ export function AddClusterDialog({ trigger, onSuccess }: AddClusterDialogProps) 
 			await clustersApi.create({
 				name: name.trim(),
 				urls: validUrls,
+				natsUrls: validNatsUrls.length > 0 ? validNatsUrls : undefined,
 				authType,
 				...getAuthConfig(),
 			});
@@ -248,7 +291,7 @@ export function AddClusterDialog({ trigger, onSuccess }: AddClusterDialogProps) 
 						</div>
 
 						<div className="space-y-2">
-							<Label>Server URLs</Label>
+							<Label>WebSocket URLs (for browser)</Label>
 							<div className="space-y-2">
 								{urls.map((url, index) => (
 									<div key={`url-${index}`} className="flex gap-2">
@@ -285,7 +328,49 @@ export function AddClusterDialog({ trigger, onSuccess }: AddClusterDialogProps) 
 								)}
 							</div>
 							<p className="text-xs text-muted-foreground">
-								Add multiple URLs for cluster redundancy
+								WebSocket URLs for browser connections (required)
+							</p>
+						</div>
+
+						<div className="space-y-2">
+							<Label>NATS URLs (for server - optional)</Label>
+							<div className="space-y-2">
+								{natsUrls.map((url, index) => (
+									<div key={`nats-url-${index}`} className="flex gap-2">
+										<Input
+											placeholder="localhost:4222 or nats://nats.example.com:4222"
+											value={url}
+											onChange={(e) => updateNatsUrl(index, e.target.value)}
+											disabled={isLoading}
+										/>
+										{natsUrls.length > 1 && (
+											<Button
+												type="button"
+												variant="outline"
+												size="icon"
+												onClick={() => removeNatsUrl(index)}
+												disabled={isLoading}
+											>
+												<Trash2 className="h-4 w-4" />
+											</Button>
+										)}
+									</div>
+								))}
+								{natsUrls.length < 10 && (
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={addNatsUrl}
+										disabled={isLoading}
+									>
+										<Plus className="mr-2 h-4 w-4" />
+										Add URL
+									</Button>
+								)}
+							</div>
+							<p className="text-xs text-muted-foreground">
+								TCP URLs for server-side operations like file uploads (e.g., localhost:4222)
 							</p>
 						</div>
 

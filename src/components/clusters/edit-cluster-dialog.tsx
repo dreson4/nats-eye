@@ -40,6 +40,7 @@ export function EditClusterDialog({
 
 	const [name, setName] = useState(cluster.name);
 	const [urls, setUrls] = useState<string[]>(cluster.urls);
+	const [natsUrls, setNatsUrls] = useState<string[]>(cluster.natsUrls || [""]);
 	const [authType, setAuthType] = useState<AuthType>(cluster.authType);
 	const [token, setToken] = useState("");
 	const [username, setUsername] = useState("");
@@ -52,6 +53,7 @@ export function EditClusterDialog({
 		if (open) {
 			setName(cluster.name);
 			setUrls(cluster.urls.length > 0 ? cluster.urls : [""]);
+			setNatsUrls(cluster.natsUrls && cluster.natsUrls.length > 0 ? cluster.natsUrls : [""]);
 			setAuthType(cluster.authType);
 			setToken("");
 			setUsername("");
@@ -98,11 +100,50 @@ export function EditClusterDialog({
 		setUrls(newUrls);
 	};
 
+	const addNatsUrl = () => {
+		if (natsUrls.length < 10) {
+			setNatsUrls([...natsUrls, ""]);
+		}
+	};
+
+	const removeNatsUrl = (index: number) => {
+		if (natsUrls.length > 1) {
+			setNatsUrls(natsUrls.filter((_, i) => i !== index));
+		}
+	};
+
+	const updateNatsUrl = (index: number, value: string) => {
+		if (value.includes(",")) {
+			const pastedUrls = value
+				.split(",")
+				.map((url) => url.trim())
+				.filter((url) => url !== "");
+
+			if (pastedUrls.length > 0) {
+				const newUrls = [...natsUrls];
+				newUrls[index] = pastedUrls[0];
+				for (let i = 1; i < pastedUrls.length && newUrls.length < 10; i++) {
+					newUrls.splice(index + i, 0, pastedUrls[i]);
+				}
+				setNatsUrls(newUrls);
+				return;
+			}
+		}
+
+		const newUrls = [...natsUrls];
+		newUrls[index] = value;
+		setNatsUrls(newUrls);
+	};
+
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		setError("");
 
 		const validUrls = urls
+			.map((url) => url.trim())
+			.filter((url) => url !== "");
+
+		const validNatsUrls = natsUrls
 			.map((url) => url.trim())
 			.filter((url) => url !== "");
 
@@ -112,7 +153,7 @@ export function EditClusterDialog({
 		}
 
 		if (validUrls.length === 0) {
-			setError("At least one URL is required");
+			setError("At least one WebSocket URL is required");
 			return;
 		}
 
@@ -121,6 +162,7 @@ export function EditClusterDialog({
 			const updateData: Parameters<typeof clustersApi.update>[1] = {
 				name: name.trim(),
 				urls: validUrls,
+				natsUrls: validNatsUrls.length > 0 ? validNatsUrls : null,
 				authType,
 			};
 
@@ -178,7 +220,7 @@ export function EditClusterDialog({
 						</div>
 
 						<div className="space-y-2">
-							<Label>Server URLs</Label>
+							<Label>WebSocket URLs (for browser)</Label>
 							<div className="space-y-2">
 								{urls.map((url, index) => (
 									<div key={`url-${index}`} className="flex gap-2">
@@ -214,6 +256,48 @@ export function EditClusterDialog({
 									</Button>
 								)}
 							</div>
+						</div>
+
+						<div className="space-y-2">
+							<Label>NATS URLs (for server - optional)</Label>
+							<div className="space-y-2">
+								{natsUrls.map((url, index) => (
+									<div key={`nats-url-${index}`} className="flex gap-2">
+										<Input
+											placeholder="localhost:4222 or nats://nats.example.com:4222"
+											value={url}
+											onChange={(e) => updateNatsUrl(index, e.target.value)}
+											disabled={isLoading}
+										/>
+										{natsUrls.length > 1 && (
+											<Button
+												type="button"
+												variant="outline"
+												size="icon"
+												onClick={() => removeNatsUrl(index)}
+												disabled={isLoading}
+											>
+												<Trash2 className="h-4 w-4" />
+											</Button>
+										)}
+									</div>
+								))}
+								{natsUrls.length < 10 && (
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={addNatsUrl}
+										disabled={isLoading}
+									>
+										<Plus className="mr-2 h-4 w-4" />
+										Add URL
+									</Button>
+								)}
+							</div>
+							<p className="text-xs text-muted-foreground">
+								TCP URLs for server-side operations like file uploads
+							</p>
 						</div>
 
 						<div className="space-y-2">

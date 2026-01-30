@@ -15,6 +15,7 @@
   "dependencies": {
     "@faker-js/faker": "^10.0.0",
     "@hono/zod-validator": "^0.7.6",
+    "@nats-io/obj": "^3.3.0",
     "@radix-ui/react-avatar": "^1.1.11",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
@@ -43,6 +44,7 @@
     "cmdk": "^1.1.1",
     "hono": "^4.11.7",
     "lucide-react": "^0.563.0",
+    "nats": "^2.29.3",
     "nats.ws": "^1.30.3",
     "next-themes": "^0.4.6",
     "react": "^19.2.0",

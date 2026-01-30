@@ -37,6 +37,7 @@ function initializeSchema(db: Database) {
 			id TEXT PRIMARY KEY,
 			name TEXT NOT NULL,
 			urls TEXT NOT NULL,
+			nats_urls TEXT,
 			auth_type TEXT NOT NULL DEFAULT 'none',
 			token TEXT,
 			username TEXT,
@@ -55,6 +56,20 @@ function initializeSchema(db: Database) {
 		CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 		CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 	`);
+
+	// Run migrations for existing databases
+	runMigrations(db);
+}
+
+// Run migrations for existing databases
+function runMigrations(db: Database) {
+	// Check if nats_urls column exists in clusters table
+	const columns = db.query<{ name: string }, []>("PRAGMA table_info(clusters)").all();
+	const hasNatsUrls = columns.some((col) => col.name === "nats_urls");
+
+	if (!hasNatsUrls) {
+		db.exec("ALTER TABLE clusters ADD COLUMN nats_urls TEXT");
+	}
 }
 
 let _db: Database | null = null;
@@ -207,6 +222,7 @@ export interface Cluster {
 	id: string;
 	name: string;
 	urls: string[];
+	nats_urls: string[] | null;
 	auth_type: AuthType;
 	token: string | null;
 	username: string | null;
@@ -219,6 +235,7 @@ interface ClusterRow {
 	id: string;
 	name: string;
 	urls: string;
+	nats_urls: string | null;
 	auth_type: string;
 	token: string | null;
 	username: string | null;
@@ -232,6 +249,7 @@ function rowToCluster(row: ClusterRow): Cluster {
 		...row,
 		auth_type: row.auth_type as AuthType,
 		urls: JSON.parse(row.urls),
+		nats_urls: row.nats_urls ? JSON.parse(row.nats_urls) : null,
 	};
 }
 
@@ -242,18 +260,20 @@ export function createCluster(
 	token?: string,
 	username?: string,
 	password?: string,
+	natsUrls?: string[],
 ): Cluster {
 	const db = getDb();
 	const id = generateId();
 	const timestamp = now();
 
 	db.run(
-		`INSERT INTO clusters (id, name, urls, auth_type, token, username, password, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO clusters (id, name, urls, nats_urls, auth_type, token, username, password, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[
 			id,
 			name,
 			JSON.stringify(urls),
+			natsUrls ? JSON.stringify(natsUrls) : null,
 			authType,
 			token ?? null,
 			username ?? null,
@@ -267,6 +287,7 @@ export function createCluster(
 		id,
 		name,
 		urls,
+		nats_urls: natsUrls ?? null,
 		auth_type: authType,
 		token: token ?? null,
 		username: username ?? null,
@@ -294,7 +315,7 @@ export function getAllClusters(): Cluster[] {
 
 export function updateCluster(
 	id: string,
-	data: Partial<Pick<Cluster, "name" | "urls" | "auth_type" | "token" | "username" | "password">>,
+	data: Partial<Pick<Cluster, "name" | "urls" | "nats_urls" | "auth_type" | "token" | "username" | "password">>,
 ): Cluster | null {
 	const db = getDb();
 	const existing = getCluster(id);
@@ -310,6 +331,10 @@ export function updateCluster(
 	if (data.urls !== undefined) {
 		updates.push("urls = ?");
 		values.push(JSON.stringify(data.urls));
+	}
+	if (data.nats_urls !== undefined) {
+		updates.push("nats_urls = ?");
+		values.push(data.nats_urls ? JSON.stringify(data.nats_urls) : null);
 	}
 	if (data.auth_type !== undefined) {
 		updates.push("auth_type = ?");

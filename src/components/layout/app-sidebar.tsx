@@ -3,6 +3,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
 	Database,
 	Eye,
+	FolderArchive,
 	Layers,
 	LayoutDashboard,
 	LogOut,
@@ -54,6 +55,11 @@ const clusterNavItems = [
 		title: "KV Store",
 		url: "/kv",
 		icon: Database,
+	},
+	{
+		title: "Object Store",
+		url: "/objectstore",
+		icon: FolderArchive,
 	},
 ];
 
