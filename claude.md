@@ -84,13 +84,13 @@ A self-hostable NATS cluster manager with a modern, slick dashboard interface.
 - [x] 5.6 Build message browser with pagination
 - [x] 5.7 Live message streaming via direct nats.ws connection from frontend
 
-### Phase 6: JetStream Consumers ⬅️ NEXT
-- [ ] 6.1 Create consumers list view
-- [ ] 6.2 Build consumer detail page
-- [ ] 6.3 Implement consumer creation dialog
-- [ ] 6.4 Add consumer editing functionality
-- [ ] 6.5 Implement consumer delete action
-- [ ] 6.6 Display consumer metrics (pending, ack pending, redelivered)
+### Phase 6: JetStream Consumers ✅ COMPLETED
+- [x] 6.1 Create consumers list view with cluster/stream filtering
+- [x] 6.2 Build consumer detail page with real-time stats
+- [x] 6.3 Implement consumer creation dialog
+- [x] 6.4 Consumer configuration display
+- [x] 6.5 Implement consumer delete action
+- [x] 6.6 Display consumer metrics (pending, ack pending, redelivered)
 
 ### Phase 7: Key-Value Stores ✅ COMPLETED
 - [x] 7.1 Create KV buckets list view with cluster selector
@@ -100,7 +100,7 @@ A self-hostable NATS cluster manager with a modern, slick dashboard interface.
 - [x] 7.5 Display key history and revisions
 - [x] 7.6 Real-time key watching via direct nats.ws connection from frontend
 
-### Phase 8: Object Store (Bonus)
+### Phase 8: Object Store (Bonus) ⬅️ NEXT
 - [ ] 8.1 Create object store buckets list
 - [ ] 8.2 Build object browser
 - [ ] 8.3 Implement file upload/download
@@ -124,7 +124,7 @@ A self-hostable NATS cluster manager with a modern, slick dashboard interface.
 
 ## Current Progress
 
-**Status**: Phases 5 & 7 Complete - Ready for Phase 6 (Consumers)
+**Status**: Phases 5, 6 & 7 Complete - Ready for Phase 8 (Object Store) or Phase 9 (Monitoring)
 **Last Updated**: 2026-01-30
 
 ### Completed Files
@@ -326,11 +326,9 @@ CREATE TABLE settings (
 - `sessionQueryOptions()` - 1 min staleTime (session validation)
 - Uses `queryClient.ensureQueryData()` in `beforeLoad` for fast navigation
 
-## Next Steps (Phase 6 - JetStream Consumers)
+## Next Steps
 
-1. Create consumers list view per cluster
-2. Build consumer detail page with metrics
-3. Implement consumer creation dialog
-4. Add consumer editing/delete functionality
-5. Display pending messages, ack pending, redelivered counts
-6. Consider real-time consumer stats via nats.ws
+Options:
+- **Phase 8 (Object Store)**: File storage with upload/download
+- **Phase 9 (Monitoring)**: Connection monitor, subscriptions viewer, charts
+- **Phase 10 (Polish)**: Keyboard shortcuts, data export, UI improvements
