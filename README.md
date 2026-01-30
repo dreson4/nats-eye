@@ -40,6 +40,13 @@ volumes:
   nats-eye-data:
 ```
 
+## Configuration
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `PORT` | `3000` | Server port |
+| `SECURE_COOKIES` | `false` | Set to `true` if using HTTPS |
+
 ## First-Time Setup
 
 1. Open NATS Eye in your browser

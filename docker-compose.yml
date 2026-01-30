@@ -5,6 +5,9 @@ services:
       - "3000:3000"
     volumes:
       - nats-eye-data:/app/data
+    environment:
+      # Set to "true" if you're using HTTPS
+      - SECURE_COOKIES=false
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]

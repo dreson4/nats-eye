@@ -14,6 +14,10 @@ import {
 const SESSION_COOKIE_NAME = "nats_eye_session";
 const SESSION_MAX_AGE = 7 * 24 * 60 * 60; // 7 days in seconds
 
+// Allow insecure cookies for self-hosters using HTTP (Tailscale, local network, etc.)
+// Set SECURE_COOKIES=true if you're using HTTPS
+const SECURE_COOKIES = process.env.SECURE_COOKIES === "true";
+
 // Password hashing using Bun's built-in crypto
 async function hashPassword(password: string): Promise<string> {
 	return Bun.password.hash(password, {
@@ -85,7 +89,7 @@ auth.post("/login", zValidator("json", loginSchema), async (c) => {
 	// Set session cookie
 	setCookie(c, SESSION_COOKIE_NAME, session.id, {
 		httpOnly: true,
-		secure: process.env.NODE_ENV === "production",
+		secure: SECURE_COOKIES,
 		sameSite: "Lax",
 		maxAge: SESSION_MAX_AGE,
 		path: "/",
