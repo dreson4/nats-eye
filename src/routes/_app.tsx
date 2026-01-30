@@ -36,7 +36,7 @@ function AppLayout() {
 	return (
 		<SidebarProvider>
 			<AppSidebar />
-			<SidebarInset className="bg-gradient-page">
+			<SidebarInset className="bg-gradient-page safe-area-top">
 				<Outlet />
 			</SidebarInset>
 			<CommandPalette />
