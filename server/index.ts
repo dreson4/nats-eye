@@ -4,6 +4,7 @@ import { logger } from "hono/logger";
 import { serveStatic } from "hono/bun";
 import auth from "./routes/auth";
 import clusters from "./routes/clusters";
+import consumers from "./routes/consumers";
 import kv from "./routes/kv";
 import stats from "./routes/stats";
 import streams from "./routes/streams";
@@ -27,6 +28,7 @@ if (process.env.NODE_ENV !== "production") {
 // API routes
 app.route("/api/auth", auth);
 app.route("/api/clusters", clusters);
+app.route("/api/consumers", consumers);
 app.route("/api/kv", kv);
 app.route("/api/stats", stats);
 app.route("/api/streams", streams);

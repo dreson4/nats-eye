@@ -15,12 +15,13 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
-import { Route as AppConsumersRouteImport } from './routes/_app/consumers'
 import { Route as AppClustersRouteImport } from './routes/_app/clusters'
 import { Route as AppStreamsIndexRouteImport } from './routes/_app/streams/index'
 import { Route as AppKvIndexRouteImport } from './routes/_app/kv/index'
+import { Route as AppConsumersIndexRouteImport } from './routes/_app/consumers/index'
 import { Route as AppStreamsClusterIdNameRouteImport } from './routes/_app/streams/$clusterId/$name'
 import { Route as AppKvClusterIdBucketRouteImport } from './routes/_app/kv/$clusterId/$bucket'
+import { Route as AppConsumersClusterIdStreamConsumerRouteImport } from './routes/_app/consumers/$clusterId/$stream/$consumer'
 
 const SetupRoute = SetupRouteImport.update({
   id: '/setup',
@@ -51,11 +52,6 @@ const AppDashboardRoute = AppDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AppRoute,
 } as any)
-const AppConsumersRoute = AppConsumersRouteImport.update({
-  id: '/consumers',
-  path: '/consumers',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppClustersRoute = AppClustersRouteImport.update({
   id: '/clusters',
   path: '/clusters',
@@ -71,6 +67,11 @@ const AppKvIndexRoute = AppKvIndexRouteImport.update({
   path: '/kv/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppConsumersIndexRoute = AppConsumersIndexRouteImport.update({
+  id: '/consumers/',
+  path: '/consumers/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppStreamsClusterIdNameRoute = AppStreamsClusterIdNameRouteImport.update({
   id: '/streams/$clusterId/$name',
   path: '/streams/$clusterId/$name',
@@ -81,32 +82,40 @@ const AppKvClusterIdBucketRoute = AppKvClusterIdBucketRouteImport.update({
   path: '/kv/$clusterId/$bucket',
   getParentRoute: () => AppRoute,
 } as any)
+const AppConsumersClusterIdStreamConsumerRoute =
+  AppConsumersClusterIdStreamConsumerRouteImport.update({
+    id: '/consumers/$clusterId/$stream/$consumer',
+    path: '/consumers/$clusterId/$stream/$consumer',
+    getParentRoute: () => AppRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/clusters': typeof AppClustersRoute
-  '/consumers': typeof AppConsumersRoute
   '/dashboard': typeof AppDashboardRoute
   '/settings': typeof AppSettingsRoute
+  '/consumers/': typeof AppConsumersIndexRoute
   '/kv/': typeof AppKvIndexRoute
   '/streams/': typeof AppStreamsIndexRoute
   '/kv/$clusterId/$bucket': typeof AppKvClusterIdBucketRoute
   '/streams/$clusterId/$name': typeof AppStreamsClusterIdNameRoute
+  '/consumers/$clusterId/$stream/$consumer': typeof AppConsumersClusterIdStreamConsumerRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/clusters': typeof AppClustersRoute
-  '/consumers': typeof AppConsumersRoute
   '/dashboard': typeof AppDashboardRoute
   '/settings': typeof AppSettingsRoute
+  '/consumers': typeof AppConsumersIndexRoute
   '/kv': typeof AppKvIndexRoute
   '/streams': typeof AppStreamsIndexRoute
   '/kv/$clusterId/$bucket': typeof AppKvClusterIdBucketRoute
   '/streams/$clusterId/$name': typeof AppStreamsClusterIdNameRoute
+  '/consumers/$clusterId/$stream/$consumer': typeof AppConsumersClusterIdStreamConsumerRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -115,13 +124,14 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/_app/clusters': typeof AppClustersRoute
-  '/_app/consumers': typeof AppConsumersRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/settings': typeof AppSettingsRoute
+  '/_app/consumers/': typeof AppConsumersIndexRoute
   '/_app/kv/': typeof AppKvIndexRoute
   '/_app/streams/': typeof AppStreamsIndexRoute
   '/_app/kv/$clusterId/$bucket': typeof AppKvClusterIdBucketRoute
   '/_app/streams/$clusterId/$name': typeof AppStreamsClusterIdNameRoute
+  '/_app/consumers/$clusterId/$stream/$consumer': typeof AppConsumersClusterIdStreamConsumerRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -130,26 +140,28 @@ export interface FileRouteTypes {
     | '/login'
     | '/setup'
     | '/clusters'
-    | '/consumers'
     | '/dashboard'
     | '/settings'
+    | '/consumers/'
     | '/kv/'
     | '/streams/'
     | '/kv/$clusterId/$bucket'
     | '/streams/$clusterId/$name'
+    | '/consumers/$clusterId/$stream/$consumer'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
     | '/setup'
     | '/clusters'
-    | '/consumers'
     | '/dashboard'
     | '/settings'
+    | '/consumers'
     | '/kv'
     | '/streams'
     | '/kv/$clusterId/$bucket'
     | '/streams/$clusterId/$name'
+    | '/consumers/$clusterId/$stream/$consumer'
   id:
     | '__root__'
     | '/'
@@ -157,13 +169,14 @@ export interface FileRouteTypes {
     | '/login'
     | '/setup'
     | '/_app/clusters'
-    | '/_app/consumers'
     | '/_app/dashboard'
     | '/_app/settings'
+    | '/_app/consumers/'
     | '/_app/kv/'
     | '/_app/streams/'
     | '/_app/kv/$clusterId/$bucket'
     | '/_app/streams/$clusterId/$name'
+    | '/_app/consumers/$clusterId/$stream/$consumer'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -217,13 +230,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDashboardRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/consumers': {
-      id: '/_app/consumers'
-      path: '/consumers'
-      fullPath: '/consumers'
-      preLoaderRoute: typeof AppConsumersRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/clusters': {
       id: '/_app/clusters'
       path: '/clusters'
@@ -245,6 +251,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppKvIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/consumers/': {
+      id: '/_app/consumers/'
+      path: '/consumers'
+      fullPath: '/consumers/'
+      preLoaderRoute: typeof AppConsumersIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/streams/$clusterId/$name': {
       id: '/_app/streams/$clusterId/$name'
       path: '/streams/$clusterId/$name'
@@ -259,29 +272,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppKvClusterIdBucketRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/consumers/$clusterId/$stream/$consumer': {
+      id: '/_app/consumers/$clusterId/$stream/$consumer'
+      path: '/consumers/$clusterId/$stream/$consumer'
+      fullPath: '/consumers/$clusterId/$stream/$consumer'
+      preLoaderRoute: typeof AppConsumersClusterIdStreamConsumerRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
   AppClustersRoute: typeof AppClustersRoute
-  AppConsumersRoute: typeof AppConsumersRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppSettingsRoute: typeof AppSettingsRoute
+  AppConsumersIndexRoute: typeof AppConsumersIndexRoute
   AppKvIndexRoute: typeof AppKvIndexRoute
   AppStreamsIndexRoute: typeof AppStreamsIndexRoute
   AppKvClusterIdBucketRoute: typeof AppKvClusterIdBucketRoute
   AppStreamsClusterIdNameRoute: typeof AppStreamsClusterIdNameRoute
+  AppConsumersClusterIdStreamConsumerRoute: typeof AppConsumersClusterIdStreamConsumerRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppClustersRoute: AppClustersRoute,
-  AppConsumersRoute: AppConsumersRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppSettingsRoute: AppSettingsRoute,
+  AppConsumersIndexRoute: AppConsumersIndexRoute,
   AppKvIndexRoute: AppKvIndexRoute,
   AppStreamsIndexRoute: AppStreamsIndexRoute,
   AppKvClusterIdBucketRoute: AppKvClusterIdBucketRoute,
   AppStreamsClusterIdNameRoute: AppStreamsClusterIdNameRoute,
+  AppConsumersClusterIdStreamConsumerRoute:
+    AppConsumersClusterIdStreamConsumerRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

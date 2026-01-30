@@ -290,6 +290,94 @@ export const streamsApi = {
 		),
 };
 
+// Consumer types
+export interface ConsumerDelivered {
+	consumerSeq: number;
+	streamSeq: number;
+}
+
+export interface ConsumerConfig {
+	durableName?: string;
+	description?: string;
+	deliverPolicy: string;
+	optStartSeq?: number;
+	optStartTime?: string;
+	ackPolicy: string;
+	ackWait?: number;
+	maxDeliver: number;
+	filterSubject?: string;
+	filterSubjects?: string[];
+	replayPolicy: string;
+	sampleFreq?: string;
+	maxWaiting?: number;
+	maxAckPending?: number;
+	flowControl?: boolean;
+	idleHeartbeat?: number;
+	headersOnly?: boolean;
+	maxBatch?: number;
+	maxBytes?: number;
+	numReplicas?: number;
+	memStorage?: boolean;
+}
+
+export interface ConsumerInfo {
+	stream: string;
+	name: string;
+	created: string;
+	config: ConsumerConfig;
+	delivered: ConsumerDelivered;
+	ackFloor: ConsumerDelivered;
+	numAckPending: number;
+	numRedelivered: number;
+	numWaiting: number;
+	numPending: number;
+	pushBound?: boolean;
+}
+
+export interface CreateConsumerData {
+	name: string;
+	description?: string;
+	durableName?: string;
+	deliverPolicy?: "all" | "last" | "new" | "by_start_sequence" | "by_start_time" | "last_per_subject";
+	optStartSeq?: number;
+	optStartTime?: string;
+	ackPolicy?: "none" | "all" | "explicit";
+	ackWait?: number;
+	maxDeliver?: number;
+	filterSubject?: string;
+	filterSubjects?: string[];
+	replayPolicy?: "instant" | "original";
+	maxWaiting?: number;
+	maxAckPending?: number;
+	flowControl?: boolean;
+	headersOnly?: boolean;
+	maxBatch?: number;
+	maxBytes?: number;
+}
+
+// Consumers API
+export const consumersApi = {
+	listAll: (clusterId: string) =>
+		request<ConsumerInfo[]>(`/consumers/cluster/${clusterId}`),
+
+	listByStream: (clusterId: string, streamName: string) =>
+		request<ConsumerInfo[]>(`/consumers/cluster/${clusterId}/stream/${streamName}`),
+
+	get: (clusterId: string, streamName: string, consumerName: string) =>
+		request<ConsumerInfo>(`/consumers/cluster/${clusterId}/stream/${streamName}/consumer/${consumerName}`),
+
+	create: (clusterId: string, streamName: string, data: CreateConsumerData) =>
+		request<ConsumerInfo>(`/consumers/cluster/${clusterId}/stream/${streamName}`, {
+			method: "POST",
+			body: JSON.stringify(data),
+		}),
+
+	delete: (clusterId: string, streamName: string, consumerName: string) =>
+		request<{ success: boolean }>(`/consumers/cluster/${clusterId}/stream/${streamName}/consumer/${consumerName}`, {
+			method: "DELETE",
+		}),
+};
+
 // KV types
 export interface KvBucketInfo {
 	name: string;
