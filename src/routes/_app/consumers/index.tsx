@@ -153,15 +153,15 @@ function ConsumersPage() {
 
 						{selectedCluster && (
 							<Select
-								value={selectedStream}
-								onValueChange={setSelectedStream}
+								value={selectedStream || "__all__"}
+								onValueChange={(v) => setSelectedStream(v === "__all__" ? "" : v)}
 								disabled={loadingStreams}
 							>
 								<SelectTrigger className="w-[200px]">
 									<SelectValue placeholder="All streams" />
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value="">All streams</SelectItem>
+									<SelectItem value="__all__">All streams</SelectItem>
 									{streams?.map((stream) => (
 										<SelectItem key={stream.name} value={stream.name}>
 											{stream.name}
