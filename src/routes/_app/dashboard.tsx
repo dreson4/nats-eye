@@ -4,6 +4,7 @@ import {
 	Activity,
 	AlertCircle,
 	CheckCircle2,
+	Command,
 	Database,
 	HardDrive,
 	Layers,
@@ -23,6 +24,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatCard } from "@/components/ui/stat-card";
 import { statsApi, type ClusterStats } from "@/lib/api";
 
 export const Route = createFileRoute("/_app/dashboard")({
@@ -43,37 +45,16 @@ function formatNumber(num: number): string {
 	return num.toString();
 }
 
-function StatCard({
-	title,
-	value,
-	description,
-	icon: Icon,
-	loading,
-}: {
-	title: string;
-	value: string | number;
-	description: string;
-	icon: React.ComponentType<{ className?: string }>;
-	loading?: boolean;
-}) {
+function StatCardSkeleton() {
 	return (
 		<Card>
 			<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-				<CardTitle className="text-sm font-medium">{title}</CardTitle>
-				<Icon className="h-4 w-4 text-muted-foreground" />
+				<Skeleton className="h-4 w-20" />
+				<Skeleton className="h-10 w-10 rounded-xl" />
 			</CardHeader>
 			<CardContent>
-				{loading ? (
-					<>
-						<Skeleton className="h-8 w-16 mb-1" />
-						<Skeleton className="h-3 w-24" />
-					</>
-				) : (
-					<>
-						<div className="text-2xl font-bold">{value}</div>
-						<p className="text-xs text-muted-foreground">{description}</p>
-					</>
-				)}
+				<Skeleton className="h-9 w-16 mb-2" />
+				<Skeleton className="h-3 w-28" />
 			</CardContent>
 		</Card>
 	);
@@ -165,41 +146,52 @@ function DashboardPage() {
 					Refresh
 				</Button>
 			</AppHeader>
-			<div className="flex flex-1 flex-col gap-4 p-4">
+			<div className="flex flex-1 flex-col gap-6 p-6">
 				{/* Stats Cards */}
 				<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-					<StatCard
-						title="Clusters"
-						value={stats?.clusters.total ?? 0}
-						description={
-							stats
-								? `${stats.clusters.connected} connected, ${stats.clusters.disconnected} disconnected`
-								: "No clusters"
-						}
-						icon={Server}
-						loading={isLoading}
-					/>
-					<StatCard
-						title="Streams"
-						value={stats?.totals.streams ?? 0}
-						description="Across all clusters"
-						icon={Layers}
-						loading={isLoading}
-					/>
-					<StatCard
-						title="Consumers"
-						value={stats?.totals.consumers ?? 0}
-						description="Across all clusters"
-						icon={Users}
-						loading={isLoading}
-					/>
-					<StatCard
-						title="Total Messages"
-						value={formatNumber(stats?.totals.messages ?? 0)}
-						description={`${formatBytes(stats?.totals.bytes ?? 0)} stored`}
-						icon={Activity}
-						loading={isLoading}
-					/>
+					{isLoading ? (
+						<>
+							<StatCardSkeleton />
+							<StatCardSkeleton />
+							<StatCardSkeleton />
+							<StatCardSkeleton />
+						</>
+					) : (
+						<>
+							<StatCard
+								title="Clusters"
+								value={stats?.clusters.total ?? 0}
+								subtitle={
+									stats
+										? `${stats.clusters.connected} connected, ${stats.clusters.disconnected} offline`
+										: "No clusters"
+								}
+								icon={Server}
+								iconColor="blue"
+							/>
+							<StatCard
+								title="Streams"
+								value={stats?.totals.streams ?? 0}
+								subtitle="Across all clusters"
+								icon={Layers}
+								iconColor="purple"
+							/>
+							<StatCard
+								title="Consumers"
+								value={stats?.totals.consumers ?? 0}
+								subtitle="Across all clusters"
+								icon={Users}
+								iconColor="green"
+							/>
+							<StatCard
+								title="Messages"
+								value={formatNumber(stats?.totals.messages ?? 0)}
+								subtitle={`${formatBytes(stats?.totals.bytes ?? 0)} stored`}
+								icon={Activity}
+								iconColor="amber"
+							/>
+						</>
+					)}
 				</div>
 
 				{/* Cluster Status & Quick Actions */}
@@ -270,31 +262,41 @@ function DashboardPage() {
 								<Link to="/clusters">
 									<Server className="h-4 w-4 mr-2" />
 									Manage Clusters
+									<kbd className="ml-auto text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">g c</kbd>
 								</Link>
 							</Button>
 							<Button variant="outline" className="w-full justify-start" asChild>
 								<Link to="/streams">
 									<Layers className="h-4 w-4 mr-2" />
 									View Streams
+									<kbd className="ml-auto text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">g s</kbd>
 								</Link>
 							</Button>
 							<Button variant="outline" className="w-full justify-start" asChild>
 								<Link to="/consumers">
 									<Users className="h-4 w-4 mr-2" />
 									View Consumers
+									<kbd className="ml-auto text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">g o</kbd>
 								</Link>
 							</Button>
 							<Button variant="outline" className="w-full justify-start" asChild>
 								<Link to="/kv">
 									<Database className="h-4 w-4 mr-2" />
 									KV Store
+									<kbd className="ml-auto text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">g k</kbd>
 								</Link>
 							</Button>
-							<Button variant="outline" className="w-full justify-start" asChild>
-								<Link to="/settings">
-									<HardDrive className="h-4 w-4 mr-2" />
-									Settings
-								</Link>
+							<Button variant="outline" className="w-full justify-between" asChild>
+								<button type="button" onClick={() => {
+									const event = new KeyboardEvent('keydown', { key: 'k', metaKey: true });
+									document.dispatchEvent(event);
+								}}>
+									<span className="flex items-center">
+										<Command className="h-4 w-4 mr-2" />
+										Command Palette
+									</span>
+									<kbd className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">⌘K</kbd>
+								</button>
 							</Button>
 						</CardContent>
 					</Card>

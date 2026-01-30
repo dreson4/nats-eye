@@ -1,6 +1,8 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { CommandPalette } from "@/components/command-palette";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { sessionQueryOptions, setupCheckQueryOptions } from "@/lib/auth";
 
 export const Route = createFileRoute("/_app")({
@@ -28,12 +30,16 @@ export const Route = createFileRoute("/_app")({
 });
 
 function AppLayout() {
+	// Enable keyboard shortcuts
+	useKeyboardShortcuts();
+
 	return (
 		<SidebarProvider>
 			<AppSidebar />
-			<SidebarInset>
+			<SidebarInset className="bg-gradient-page">
 				<Outlet />
 			</SidebarInset>
+			<CommandPalette />
 		</SidebarProvider>
 	);
 }
