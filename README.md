@@ -88,6 +88,16 @@ bun run build
 - **Database**: SQLite (bun:sqlite)
 - **NATS**: nats.ws (WebSocket client)
 
+
+## Screenshots
+<img width="2056" height="1170" alt="Screenshot 2026-02-02 at 12 30 14 AM" src="https://github.com/user-attachments/assets/2e518d51-ab9f-4c61-9c13-b21d69f116a8" />
+<img width="2056" height="1163" alt="Screenshot 2026-02-02 at 12 29 56 AM" src="https://github.com/user-attachments/assets/3f1b53fc-263e-4585-ad8e-ea48cc228b58" />
+<img width="2056" height="1175" alt="Screenshot 2026-02-02 at 12 29 38 AM" src="https://github.com/user-attachments/assets/100f2b8e-20d2-4f84-b74a-babbfe101a6a" />
+<img width="594" height="461" alt="Screenshot 2026-02-02 at 12 29 24 AM" src="https://github.com/user-attachments/assets/99c7df04-42fb-46b7-a735-01eb4fae10d1" />
+<img width="2056" height="1175" alt="Screenshot 2026-02-02 at 12 29 15 AM" src="https://github.com/user-attachments/assets/63d1a23a-2a4c-4da0-a9de-b39e3980c201" />
+
+
+
 ## License
 
 MIT
