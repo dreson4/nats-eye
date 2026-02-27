@@ -303,10 +303,16 @@ export const streamsApi = {
 			{ method: "POST" },
 		),
 
-	getMessages: (clusterId: string, name: string, startSeq?: number, limit?: number) =>
-		request<StreamMessagesResponse>(
-			`/streams/cluster/${clusterId}/stream/${name}/messages?startSeq=${startSeq ?? 1}&limit=${limit ?? 50}`,
-		),
+	getMessages: (clusterId: string, name: string, startSeq?: number, limit?: number, direction: "forward" | "backward" = "backward", subject?: string) => {
+		const params = new URLSearchParams();
+		if (startSeq !== undefined) params.set("startSeq", String(startSeq));
+		params.set("limit", String(limit ?? 50));
+		params.set("direction", direction);
+		if (subject) params.set("subject", subject);
+		return request<StreamMessagesResponse>(
+			`/streams/cluster/${clusterId}/stream/${name}/messages?${params.toString()}`,
+		);
+	},
 };
 
 // Consumer types

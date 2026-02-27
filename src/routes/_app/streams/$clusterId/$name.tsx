@@ -7,6 +7,7 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	Database,
+	Filter,
 	HardDrive,
 	Layers,
 	Pause,
@@ -14,6 +15,7 @@ import {
 	Radio,
 	RefreshCw,
 	Trash2,
+	X,
 } from "lucide-react";
 import { connect, type NatsConnection, type Subscription } from "nats.ws";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -27,6 +29,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
@@ -84,16 +87,34 @@ interface LiveMessage {
 	isNew?: boolean;
 }
 
+function subjectMatchesFilter(subject: string, filter: string): boolean {
+	if (!filter) return true;
+	const subjectTokens = subject.split(".");
+	const filterTokens = filter.split(".");
+
+	for (let i = 0; i < filterTokens.length; i++) {
+		if (filterTokens[i] === ">") return true;
+		if (i >= subjectTokens.length) return false;
+		if (filterTokens[i] !== "*" && filterTokens[i] !== subjectTokens[i]) return false;
+	}
+
+	return subjectTokens.length === filterTokens.length;
+}
+
 function StreamDetailPage() {
 	const { clusterId, name } = Route.useParams();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const [currentSeq, setCurrentSeq] = useState<number | undefined>(undefined);
+	const [direction, setDirection] = useState<"forward" | "backward">("backward");
+	const [subjectFilter, setSubjectFilter] = useState("");
+	const [activeSubjectFilter, setActiveSubjectFilter] = useState("");
 	const [activeTab, setActiveTab] = useState("messages");
 
 	// Live streaming state
 	const [isStreaming, setIsStreaming] = useState(false);
 	const [liveMessages, setLiveMessages] = useState<LiveMessage[]>([]);
+	const [liveSubjectFilter, setLiveSubjectFilter] = useState("");
 	const [natsConnected, setNatsConnected] = useState(false);
 	const [streamError, setStreamError] = useState<string | null>(null);
 	const ncRef = useRef<NatsConnection | null>(null);
@@ -122,15 +143,10 @@ function StreamDetailPage() {
 		isLoading: loadingMessages,
 		refetch: refetchMessages,
 	} = useQuery({
-		queryKey: ["stream-messages", clusterId, name, currentSeq],
-		queryFn: () => streamsApi.getMessages(clusterId, name, currentSeq, 25),
+		queryKey: ["stream-messages", clusterId, name, currentSeq, direction, activeSubjectFilter],
+		queryFn: () => streamsApi.getMessages(clusterId, name, currentSeq, 25, direction, activeSubjectFilter || undefined),
 		enabled: !!stream,
 	});
-
-	// Initialize currentSeq when stream loads
-	if (stream && currentSeq === undefined && stream.state.firstSeq > 0) {
-		setCurrentSeq(stream.state.firstSeq);
-	}
 
 	// NATS connection for live streaming
 	const connectNats = useCallback(async () => {
@@ -300,26 +316,48 @@ function StreamDetailPage() {
 		}
 	};
 
-	const goToPrevPage = () => {
+	const goToOlderPage = () => {
 		if (messagesData && messagesData.messages.length > 0) {
 			const firstMsgSeq = messagesData.messages[0].seq;
-			const newSeq = Math.max(messagesData.firstSeq, firstMsgSeq - 25);
-			setCurrentSeq(newSeq);
-		}
-	};
-
-	const goToNextPage = () => {
-		if (messagesData && messagesData.messages.length > 0) {
-			const lastMsgSeq = messagesData.messages[messagesData.messages.length - 1].seq;
-			if (lastMsgSeq < messagesData.lastSeq) {
-				setCurrentSeq(lastMsgSeq + 1);
+			if (firstMsgSeq > messagesData.firstSeq) {
+				setCurrentSeq(firstMsgSeq - 1);
+				setDirection("backward");
 			}
 		}
 	};
 
-	const hasPrevPage = messagesData && messagesData.messages.length > 0 &&
+	const goToNewerPage = () => {
+		if (messagesData && messagesData.messages.length > 0) {
+			const lastMsgSeq = messagesData.messages[messagesData.messages.length - 1].seq;
+			if (lastMsgSeq < messagesData.lastSeq) {
+				setCurrentSeq(lastMsgSeq + 1);
+				setDirection("forward");
+			}
+		}
+	};
+
+	const goToLatest = () => {
+		setCurrentSeq(undefined);
+		setDirection("backward");
+	};
+
+	const applySubjectFilter = () => {
+		setActiveSubjectFilter(subjectFilter.trim());
+		setCurrentSeq(undefined);
+		setDirection("backward");
+	};
+
+	const clearSubjectFilter = () => {
+		setSubjectFilter("");
+		setActiveSubjectFilter("");
+		setCurrentSeq(undefined);
+		setDirection("backward");
+	};
+
+	const hasOlderPage = messagesData && messagesData.messages.length > 0 &&
 		messagesData.messages[0].seq > messagesData.firstSeq;
-	const hasNextPage = messagesData?.hasMore;
+	const hasNewerPage = messagesData && messagesData.messages.length > 0 &&
+		messagesData.messages[messagesData.messages.length - 1].seq < messagesData.lastSeq;
 
 	if (error) {
 		return (
@@ -482,41 +520,96 @@ function StreamDetailPage() {
 
 							<TabsContent value="messages" className="space-y-4">
 								<Card>
-									<CardHeader className="flex flex-row items-center justify-between">
-										<div>
-											<CardTitle>Message Browser</CardTitle>
-											<CardDescription>
-												Browse historical messages in this stream
-											</CardDescription>
+									<CardHeader className="space-y-3">
+										<div className="flex flex-row items-center justify-between">
+											<div>
+												<CardTitle>Message Browser</CardTitle>
+												<CardDescription>
+													Browse historical messages in this stream
+												</CardDescription>
+											</div>
+											<div className="flex items-center gap-2">
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={goToOlderPage}
+													disabled={!hasOlderPage || loadingMessages}
+													title="Older messages"
+												>
+													<ChevronLeft className="h-4 w-4" />
+													Older
+												</Button>
+												<span className="text-sm text-muted-foreground">
+													{messagesData?.messages.length || 0} messages
+												</span>
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={goToNewerPage}
+													disabled={!hasNewerPage || loadingMessages}
+													title="Newer messages"
+												>
+													Newer
+													<ChevronRight className="h-4 w-4" />
+												</Button>
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={goToLatest}
+													disabled={loadingMessages || (!currentSeq && direction === "backward")}
+													title="Jump to latest"
+												>
+													Latest
+												</Button>
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={() => refetchMessages()}
+													disabled={loadingMessages}
+												>
+													<RefreshCw className={`h-4 w-4 ${loadingMessages ? "animate-spin" : ""}`} />
+												</Button>
+											</div>
 										</div>
 										<div className="flex items-center gap-2">
+											<div className="relative flex-1 max-w-sm">
+												<Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+												<Input
+													placeholder="Filter by subject (e.g. orders.>)"
+													value={subjectFilter}
+													onChange={(e) => setSubjectFilter(e.target.value)}
+													onKeyDown={(e) => {
+														if (e.key === "Enter") applySubjectFilter();
+													}}
+													className="pl-9 h-9"
+												/>
+												{activeSubjectFilter && (
+													<button
+														type="button"
+														onClick={clearSubjectFilter}
+														className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+													>
+														<X className="h-4 w-4" />
+													</button>
+												)}
+											</div>
 											<Button
 												variant="outline"
 												size="sm"
-												onClick={goToPrevPage}
-												disabled={!hasPrevPage || loadingMessages}
+												onClick={applySubjectFilter}
+												disabled={loadingMessages || !subjectFilter.trim()}
+												className="h-9"
 											>
-												<ChevronLeft className="h-4 w-4" />
+												Apply
 											</Button>
-											<span className="text-sm text-muted-foreground">
-												{messagesData?.messages.length || 0} messages
-											</span>
-											<Button
-												variant="outline"
-												size="sm"
-												onClick={goToNextPage}
-												disabled={!hasNextPage || loadingMessages}
-											>
-												<ChevronRight className="h-4 w-4" />
-											</Button>
-											<Button
-												variant="outline"
-												size="sm"
-												onClick={() => refetchMessages()}
-												disabled={loadingMessages}
-											>
-												<RefreshCw className={`h-4 w-4 ${loadingMessages ? "animate-spin" : ""}`} />
-											</Button>
+											{activeSubjectFilter && (
+												<Badge variant="secondary" className="gap-1">
+													{activeSubjectFilter}
+													<button type="button" onClick={clearSubjectFilter}>
+														<X className="h-3 w-3" />
+													</button>
+												</Badge>
+											)}
 										</div>
 									</CardHeader>
 									<CardContent>
@@ -568,104 +661,141 @@ function StreamDetailPage() {
 
 							<TabsContent value="live" className="space-y-4">
 								<Card>
-									<CardHeader className="flex flex-row items-center justify-between">
-										<div>
-											<CardTitle className="flex items-center gap-2">
-												Live Messages
-												{isStreaming && natsConnected && (
-													<span className="relative flex h-2 w-2">
-														<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-														<span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-													</span>
+									<CardHeader className="space-y-3">
+										<div className="flex flex-row items-center justify-between">
+											<div>
+												<CardTitle className="flex items-center gap-2">
+													Live Messages
+													{isStreaming && natsConnected && (
+														<span className="relative flex h-2 w-2">
+															<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+															<span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+														</span>
+													)}
+												</CardTitle>
+												<CardDescription>
+													{streamError ? (
+														<span className="text-destructive">{streamError}</span>
+													) : isStreaming ? (
+														natsConnected
+															? `Watching subjects: ${stream?.subjects?.join(", ") || "..."}`
+															: "Connecting to NATS..."
+													) : (
+														"Click Start to watch for new messages in real-time"
+													)}
+												</CardDescription>
+											</div>
+											<div className="flex items-center gap-2">
+												<Button
+													variant={isStreaming ? "destructive" : "default"}
+													size="sm"
+													onClick={toggleStreaming}
+												>
+													{isStreaming ? (
+														<>
+															<Pause className="h-4 w-4 mr-2" />
+															Stop
+														</>
+													) : (
+														<>
+															<Play className="h-4 w-4 mr-2" />
+															Start
+														</>
+													)}
+												</Button>
+												{liveMessages.length > 0 && (
+													<Button
+														variant="outline"
+														size="sm"
+														onClick={() => setLiveMessages([])}
+													>
+														Clear
+													</Button>
 												)}
-											</CardTitle>
-											<CardDescription>
-												{streamError ? (
-													<span className="text-destructive">{streamError}</span>
-												) : isStreaming ? (
-													natsConnected
-														? `Watching subjects: ${stream?.subjects?.join(", ") || "..."}`
-														: "Connecting to NATS..."
-												) : (
-													"Click Start to watch for new messages in real-time"
-												)}
-											</CardDescription>
+											</div>
 										</div>
 										<div className="flex items-center gap-2">
-											<Button
-												variant={isStreaming ? "destructive" : "default"}
-												size="sm"
-												onClick={toggleStreaming}
-											>
-												{isStreaming ? (
-													<>
-														<Pause className="h-4 w-4 mr-2" />
-														Stop
-													</>
-												) : (
-													<>
-														<Play className="h-4 w-4 mr-2" />
-														Start
-													</>
+											<div className="relative flex-1 max-w-sm">
+												<Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+												<Input
+													placeholder="Filter by subject (e.g. orders.>)"
+													value={liveSubjectFilter}
+													onChange={(e) => setLiveSubjectFilter(e.target.value)}
+													className="pl-9 h-9"
+												/>
+												{liveSubjectFilter && (
+													<button
+														type="button"
+														onClick={() => setLiveSubjectFilter("")}
+														className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+													>
+														<X className="h-4 w-4" />
+													</button>
 												)}
-											</Button>
-											{liveMessages.length > 0 && (
-												<Button
-													variant="outline"
-													size="sm"
-													onClick={() => setLiveMessages([])}
-												>
-													Clear
-												</Button>
+											</div>
+											{liveSubjectFilter && (
+												<Badge variant="secondary" className="gap-1">
+													{liveSubjectFilter}
+													<button type="button" onClick={() => setLiveSubjectFilter("")}>
+														<X className="h-3 w-3" />
+													</button>
+												</Badge>
 											)}
 										</div>
 									</CardHeader>
 									<CardContent>
 										<div className="max-h-[500px] overflow-y-auto">
-											{liveMessages.length > 0 ? (
-												<Table>
-													<TableHeader>
-														<TableRow>
-															<TableHead className="w-[80px]">Seq</TableHead>
-															<TableHead className="w-[200px]">Subject</TableHead>
-															<TableHead className="w-[180px]">Time</TableHead>
-															<TableHead>Data</TableHead>
-														</TableRow>
-													</TableHeader>
-													<TableBody>
-														{liveMessages.map((msg) => (
-															<TableRow
-																key={msg.seq}
-																className={cn(
-																	"transition-colors duration-500",
-																	msg.isNew && "bg-green-500/10 animate-pulse"
-																)}
-															>
-																<TableCell className="font-mono text-sm">
-																	{msg.seq}
-																</TableCell>
-																<TableCell>
-																	<Badge variant="outline" className="font-mono text-xs">
-																		{msg.subject}
-																	</Badge>
-																</TableCell>
-																<TableCell className="text-xs text-muted-foreground">
-																	{formatDate(msg.time)}
-																</TableCell>
-																<TableCell className="font-mono text-xs max-w-[400px] truncate">
-																	{msg.data}
-																</TableCell>
+											{(() => {
+												const filtered = liveSubjectFilter
+													? liveMessages.filter((msg) => subjectMatchesFilter(msg.subject, liveSubjectFilter))
+													: liveMessages;
+												return filtered.length > 0 ? (
+													<Table>
+														<TableHeader>
+															<TableRow>
+																<TableHead className="w-[80px]">Seq</TableHead>
+																<TableHead className="w-[200px]">Subject</TableHead>
+																<TableHead className="w-[180px]">Time</TableHead>
+																<TableHead>Data</TableHead>
 															</TableRow>
-														))}
-													</TableBody>
-												</Table>
-											) : (
-												<div className="text-center py-8 text-muted-foreground">
-													{isStreaming
-														? "Waiting for new messages..."
-														: "No live messages yet. Click Start to begin watching."}
-												</div>
-											)}
+														</TableHeader>
+														<TableBody>
+															{filtered.map((msg) => (
+																<TableRow
+																	key={msg.seq}
+																	className={cn(
+																		"transition-colors duration-500",
+																		msg.isNew && "bg-green-500/10 animate-pulse"
+																	)}
+																>
+																	<TableCell className="font-mono text-sm">
+																		{msg.seq}
+																	</TableCell>
+																	<TableCell>
+																		<Badge variant="outline" className="font-mono text-xs">
+																			{msg.subject}
+																		</Badge>
+																	</TableCell>
+																	<TableCell className="text-xs text-muted-foreground">
+																		{formatDate(msg.time)}
+																	</TableCell>
+																	<TableCell className="font-mono text-xs max-w-[400px] truncate">
+																		{msg.data}
+																	</TableCell>
+																</TableRow>
+															))}
+														</TableBody>
+													</Table>
+												) : (
+													<div className="text-center py-8 text-muted-foreground">
+														{liveSubjectFilter && liveMessages.length > 0
+															? `No messages matching "${liveSubjectFilter}"`
+															: isStreaming
+																? "Waiting for new messages..."
+																: "No live messages yet. Click Start to begin watching."}
+													</div>
+												);
+											})()}
 											<div ref={messagesEndRef} />
 										</div>
 									</CardContent>
