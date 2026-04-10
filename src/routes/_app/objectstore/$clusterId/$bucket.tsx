@@ -232,7 +232,7 @@ function ObjectStoreBucketPage() {
 			})();
 		} catch (err) {
 			console.error("Failed to connect to NATS:", err);
-			let errorMessage = err instanceof Error ? err.message : "Connection failed";
+			let errorMessage = (err instanceof Error ? err.message : undefined) || "Connection failed";
 
 			// Add helpful hints for common issues
 			if (errorMessage.includes('WebSocket') || errorMessage.includes('connect')) {
