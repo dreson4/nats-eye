@@ -92,6 +92,19 @@ export interface TestConnectionResult {
 	error?: string;
 }
 
+export interface TestMonitoringUrlResult {
+	url: string;
+	success: boolean;
+	serverName?: string;
+	version?: string;
+	error?: string;
+}
+
+export interface TestMonitoringResult {
+	success: boolean;
+	results: TestMonitoringUrlResult[];
+}
+
 // Clusters API
 export const clustersApi = {
 	getAll: () => request<ClusterData[]>("/clusters"),
@@ -138,6 +151,18 @@ export const clustersApi = {
 		request<TestConnectionResult>("/clusters/test", {
 			method: "POST",
 			body: JSON.stringify({ urls, ...auth }),
+		}),
+
+	testNatsConnection: (urls: string[], auth?: ClusterAuthConfig) =>
+		request<TestConnectionResult>("/clusters/test-nats", {
+			method: "POST",
+			body: JSON.stringify({ urls, ...auth }),
+		}),
+
+	testMonitoringConnection: (urls: string[]) =>
+		request<TestMonitoringResult>("/clusters/test-monitoring", {
+			method: "POST",
+			body: JSON.stringify({ urls }),
 		}),
 
 	testExisting: (id: string) =>
@@ -403,8 +428,27 @@ export const consumersApi = {
 		}),
 };
 
-// Object Store - All operations handled on frontend via direct nats.ws connections
-// Types kept for reference but API methods removed
+// Object Store types
+export interface ObjectStoreBucketInfo {
+	name: string;
+	description?: string;
+	size: number;
+	storage: string;
+	replicas: number;
+	sealed: boolean;
+	ttl: number;
+}
+
+// Object Store API
+export const objectStoreApi = {
+	listBuckets: (clusterId: string) =>
+		request<ObjectStoreBucketInfo[]>(`/objectstore/cluster/${clusterId}`),
+
+	deleteBucket: (clusterId: string, name: string) =>
+		request<{ success: boolean }>(`/objectstore/cluster/${clusterId}/bucket/${name}`, {
+			method: "DELETE",
+		}),
+};
 
 // KV types
 export interface KvBucketInfo {

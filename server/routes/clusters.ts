@@ -1,6 +1,7 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { connect, type ConnectionOptions } from "nats.ws";
+import { connect as connectTcp, type ConnectionOptions as TcpConnectionOptions } from "nats";
 import { z } from "zod";
 import {
 	type AuthType,
@@ -219,6 +220,104 @@ clusters.post("/test", zValidator("json", testConnectionSchema), async (c) => {
 			error: error instanceof Error ? error.message : "Connection failed",
 		});
 	}
+});
+
+// Test NATS TCP connection (with provided credentials)
+const testNatsSchema = z.object({
+	urls: z.array(z.string()).min(1),
+	token: z.string().optional(),
+	username: z.string().optional(),
+	password: z.string().optional(),
+});
+
+clusters.post("/test-nats", zValidator("json", testNatsSchema), async (c) => {
+	const { urls, token, username, password } = c.req.valid("json");
+
+	let authType: AuthType = "none";
+	if (token) {
+		authType = "token";
+	} else if (username && password) {
+		authType = "userpass";
+	}
+
+	try {
+		const opts: TcpConnectionOptions = {
+			servers: urls,
+			timeout: 5000,
+		};
+
+		if (authType === "token" && token) {
+			opts.token = token;
+		} else if (authType === "userpass" && username && password) {
+			opts.user = username;
+			opts.pass = password;
+		}
+
+		const nc = await connectTcp(opts);
+		const serverInfo = nc.info;
+		await nc.close();
+
+		return c.json({
+			success: true,
+			serverInfo: serverInfo
+				? {
+						serverName: serverInfo.server_name,
+						version: serverInfo.version,
+						jetstream: serverInfo.jetstream ?? false,
+					}
+				: null,
+		});
+	} catch (error) {
+		return c.json({
+			success: false,
+			error: error instanceof Error ? error.message : "Connection failed",
+		});
+	}
+});
+
+// Test monitoring URL (HTTP fetch to /varz)
+const testMonitoringSchema = z.object({
+	urls: z.array(z.string()).min(1),
+});
+
+clusters.post("/test-monitoring", zValidator("json", testMonitoringSchema), async (c) => {
+	const { urls } = c.req.valid("json");
+
+	const results = await Promise.all(
+		urls.map(async (url) => {
+			try {
+				const varzUrl = url.replace(/\/$/, "") + "/varz";
+				const response = await fetch(varzUrl, { signal: AbortSignal.timeout(5000) });
+
+				if (!response.ok) {
+					return { url, success: false, error: `HTTP ${response.status}` };
+				}
+
+				const data = await response.json() as {
+					server_name?: string;
+					version?: string;
+				};
+				return {
+					url,
+					success: true,
+					serverName: data.server_name,
+					version: data.version,
+				};
+			} catch (error) {
+				return {
+					url,
+					success: false,
+					error: error instanceof Error ? error.message : "Connection failed",
+				};
+			}
+		}),
+	);
+
+	const allSuccess = results.every((r) => r.success);
+	return c.json({
+		success: allSuccess,
+		results,
+	});
 });
 
 // Test existing cluster connection

@@ -37,10 +37,12 @@ function buildConnectionOptions(
 async function connectToCluster(clusterId: string): Promise<{ nc: NatsConnection; cluster: NonNullable<ReturnType<typeof getCluster>> } | { error: string }> {
 	const cluster = getCluster(clusterId);
 	if (!cluster) {
+		console.log(`[KV] Cluster not found: ${clusterId}`);
 		return { error: "Cluster not found" };
 	}
 
 	try {
+		console.log(`[KV] Connecting to cluster "${cluster.name}" via WebSocket: ${cluster.urls.join(", ")}`);
 		const opts = buildConnectionOptions(
 			cluster.urls,
 			cluster.auth_type,
@@ -49,9 +51,12 @@ async function connectToCluster(clusterId: string): Promise<{ nc: NatsConnection
 			cluster.password,
 		);
 		const nc = await connect(opts);
+		console.log(`[KV] Connected to cluster "${cluster.name}"`);
 		return { nc, cluster };
 	} catch (error) {
-		return { error: error instanceof Error ? error.message : "Connection failed" };
+		const msg = error instanceof Error ? error.message : "Connection failed";
+		console.error(`[KV] Connection failed for cluster "${cluster.name}": ${msg}`);
+		return { error: `Failed to connect to NATS cluster "${cluster.name}": ${msg}` };
 	}
 }
 
@@ -88,13 +93,15 @@ const kv = new Hono();
 // List all KV buckets for a cluster
 kv.get("/cluster/:clusterId", async (c) => {
 	const clusterId = c.req.param("clusterId");
+	console.log(`[KV] Listing buckets for cluster ${clusterId}`);
 	const result = await connectToCluster(clusterId);
 
 	if ("error" in result) {
+		console.error(`[KV] Cannot list buckets - connection failed: ${result.error}`);
 		return c.json({ error: result.error }, 400);
 	}
 
-	const { nc } = result;
+	const { nc, cluster } = result;
 
 	try {
 		const buckets: Array<{
@@ -110,14 +117,16 @@ kv.get("/cluster/:clusterId", async (c) => {
 			values: number;
 		}> = [];
 
-		// List streams and filter for KV_ prefix
 		const jsm = await nc.jetstreamManager();
+		console.log(`[KV] Got JetStream manager for cluster "${cluster.name}", listing streams...`);
 		const streamLister = jsm.streams.list();
 
-		// Iterate through all streams
+		let streamCount = 0;
 		for await (const stream of streamLister) {
+			streamCount++;
 			if (stream.config.name.startsWith("KV_")) {
-				const bucketName = stream.config.name.slice(3); // Remove "KV_" prefix
+				const bucketName = stream.config.name.slice(3);
+				console.log(`[KV] Found KV stream: ${stream.config.name} (bucket: ${bucketName}, messages: ${stream.state.messages}, bytes: ${stream.state.bytes})`);
 				buckets.push({
 					name: bucketName,
 					description: stream.config.description,
@@ -133,13 +142,18 @@ kv.get("/cluster/:clusterId", async (c) => {
 			}
 		}
 
+		console.log(`[KV] Cluster "${cluster.name}": found ${streamCount} total streams, ${buckets.length} KV buckets`);
 		return c.json(buckets);
 	} catch (error) {
-		return c.json({
-			error: error instanceof Error ? error.message : "Failed to list KV buckets",
-		}, 500);
+		const msg = error instanceof Error ? error.message : "Failed to list KV buckets";
+		console.error(`[KV] Error listing buckets for cluster "${cluster.name}": ${msg}`);
+		if (error instanceof Error && error.stack) {
+			console.error(`[KV] Stack trace: ${error.stack}`);
+		}
+		return c.json({ error: msg }, 500);
 	} finally {
 		await nc.close().catch(() => {});
+		console.log(`[KV] Closed connection to cluster "${cluster.name}"`);
 	}
 });
 
@@ -147,13 +161,14 @@ kv.get("/cluster/:clusterId", async (c) => {
 kv.get("/cluster/:clusterId/bucket/:name", async (c) => {
 	const clusterId = c.req.param("clusterId");
 	const name = c.req.param("name");
+	console.log(`[KV] Getting bucket info for "${name}" in cluster ${clusterId}`);
 	const result = await connectToCluster(clusterId);
 
 	if ("error" in result) {
 		return c.json({ error: result.error }, 400);
 	}
 
-	const { nc } = result;
+	const { nc, cluster } = result;
 
 	try {
 		const js = nc.jetstream();
@@ -161,10 +176,10 @@ kv.get("/cluster/:clusterId/bucket/:name", async (c) => {
 		const bucket = await js.views.kv(name);
 		const status = await bucket.status();
 
-		// Get the underlying stream to check storage type
 		const streamInfo = await jsm.streams.info(`KV_${name}`);
 		const storageType = streamInfo.config.storage === StorageType.File ? "file" : "memory";
 
+		console.log(`[KV] Bucket "${name}" in cluster "${cluster.name}": ${status.values} keys, ${status.size} bytes, storage=${storageType}`);
 		return c.json({
 			name: status.bucket,
 			description: status.description,
@@ -178,9 +193,9 @@ kv.get("/cluster/:clusterId/bucket/:name", async (c) => {
 			values: status.values,
 		});
 	} catch (error) {
-		return c.json({
-			error: error instanceof Error ? error.message : "Bucket not found",
-		}, 404);
+		const msg = error instanceof Error ? error.message : "Bucket not found";
+		console.error(`[KV] Failed to get bucket "${name}" in cluster "${cluster.name}": ${msg}`);
+		return c.json({ error: msg }, 404);
 	} finally {
 		await nc.close().catch(() => {});
 	}
@@ -265,17 +280,21 @@ kv.delete("/cluster/:clusterId/bucket/:name", async (c) => {
 kv.get("/cluster/:clusterId/bucket/:name/keys", async (c) => {
 	const clusterId = c.req.param("clusterId");
 	const name = c.req.param("name");
+	console.log(`[KV] Listing keys for bucket "${name}" in cluster ${clusterId}`);
 	const result = await connectToCluster(clusterId);
 
 	if ("error" in result) {
+		console.error(`[KV] Cannot list keys - connection failed: ${result.error}`);
 		return c.json({ error: result.error }, 400);
 	}
 
-	const { nc } = result;
+	const { nc, cluster } = result;
 
 	try {
 		const js = nc.jetstream();
+		console.log(`[KV] Opening KV bucket "${name}" in cluster "${cluster.name}"...`);
 		const bucket = await js.views.kv(name);
+		console.log(`[KV] Bucket "${name}" opened, fetching history...`);
 
 		const keysMap = new Map<string, {
 			key: string;
@@ -284,12 +303,12 @@ kv.get("/cluster/:clusterId/bucket/:name/keys", async (c) => {
 			created: string;
 		}>();
 
-		// Get all history entries for all keys (">") to build current state
 		const history = await bucket.history({ key: ">" });
 
+		let entryCount = 0;
 		for await (const entry of history) {
+			entryCount++;
 			if (entry.operation === "PUT") {
-				// Store/update the entry (last one wins for each key)
 				keysMap.set(entry.key, {
 					key: entry.key,
 					value: new TextDecoder().decode(entry.value),
@@ -297,18 +316,23 @@ kv.get("/cluster/:clusterId/bucket/:name/keys", async (c) => {
 					created: entry.created.toISOString(),
 				});
 			} else if (entry.operation === "DEL" || entry.operation === "PURGE") {
-				// Remove deleted keys
 				keysMap.delete(entry.key);
 			}
 		}
 
-		return c.json(Array.from(keysMap.values()));
+		const keys = Array.from(keysMap.values());
+		console.log(`[KV] Bucket "${name}" in cluster "${cluster.name}": processed ${entryCount} history entries, ${keys.length} active keys`);
+		return c.json(keys);
 	} catch (error) {
-		return c.json({
-			error: error instanceof Error ? error.message : "Failed to list keys",
-		}, 500);
+		const msg = error instanceof Error ? error.message : "Failed to list keys";
+		console.error(`[KV] Error listing keys for bucket "${name}" in cluster "${cluster.name}": ${msg}`);
+		if (error instanceof Error && error.stack) {
+			console.error(`[KV] Stack trace: ${error.stack}`);
+		}
+		return c.json({ error: msg }, 500);
 	} finally {
 		await nc.close().catch(() => {});
+		console.log(`[KV] Closed connection for key listing of bucket "${name}"`);
 	}
 });
 

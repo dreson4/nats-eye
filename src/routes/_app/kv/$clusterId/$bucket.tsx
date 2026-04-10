@@ -103,6 +103,7 @@ function KvBucketPage() {
 	const [showHistory, setShowHistory] = useState<string | null>(null);
 	const [recentChanges, setRecentChanges] = useState<KeyChange[]>([]);
 	const [keys, setKeys] = useState<LocalKvEntry[]>([]);
+	const [keysError, setKeysError] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
 
 	const ncRef = useRef<NatsConnection | null>(null);
@@ -188,8 +189,11 @@ function KvBucketPage() {
 					revision: k.revision,
 					created: k.created,
 				})));
+				setKeysError(null);
 			} catch (err) {
 				console.error("Failed to load keys from API:", err);
+				const msg = err instanceof Error ? err.message : "Failed to load keys";
+				setKeysError(msg);
 				setKeys([]);
 			}
 
@@ -394,8 +398,8 @@ function KvBucketPage() {
 		}
 
 		setIsLoading(true);
+		setKeysError(null);
 		try {
-			// Use the API to get all keys (most reliable)
 			const keysFromApi = await kvApi.listKeys(clusterId, bucket);
 			setKeys(keysFromApi.map(k => ({
 				key: k.key,
@@ -406,6 +410,8 @@ function KvBucketPage() {
 			refetchBucket();
 		} catch (err) {
 			console.error("Failed to refresh keys:", err);
+			const msg = err instanceof Error ? err.message : "Failed to load keys";
+			setKeysError(msg);
 		} finally {
 			setIsLoading(false);
 		}
@@ -599,7 +605,21 @@ function KvBucketPage() {
 						</div>
 					</CardHeader>
 					<CardContent>
-						{isLoading ? (
+						{keysError ? (
+							<div className="space-y-3">
+								<div className="rounded-md bg-destructive/15 p-4 text-sm text-destructive">
+									<div className="flex items-center gap-2 font-medium mb-1">
+										<AlertCircle className="h-4 w-4" />
+										Failed to load keys
+									</div>
+									<p className="whitespace-pre-wrap">{keysError}</p>
+								</div>
+								<Button variant="outline" size="sm" onClick={handleRefresh}>
+									<RefreshCw className="h-4 w-4 mr-2" />
+									Retry
+								</Button>
+							</div>
+						) : isLoading ? (
 							<div className="space-y-2">
 								<Skeleton className="h-10 w-full" />
 								<Skeleton className="h-10 w-full" />

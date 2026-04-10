@@ -14,7 +14,6 @@ import {
 import {
 	connect,
 	type NatsConnection,
-	type JetStreamManager,
 	StorageType,
 } from "nats.ws";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -61,21 +60,11 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { clustersApi } from "@/lib/api";
+import { clustersApi, objectStoreApi, type ObjectStoreBucketInfo } from "@/lib/api";
 
 export const Route = createFileRoute("/_app/objectstore/")({
 	component: ObjectStorePage,
 });
-
-interface BucketInfo {
-	name: string;
-	description?: string;
-	size: number;
-	storage: string;
-	replicas: number;
-	sealed: boolean;
-	ttl: number;
-}
 
 function formatBytes(bytes: number): string {
 	if (bytes === 0) return "0 B";
@@ -89,45 +78,34 @@ function ObjectStorePage() {
 	const [selectedCluster, setSelectedCluster] = useState<string>("");
 	const [searchQuery, setSearchQuery] = useState("");
 	const [showCreateDialog, setShowCreateDialog] = useState(false);
-
 	const [natsConnected, setNatsConnected] = useState(false);
-	const [connectionError, setConnectionError] = useState<string | null>(null);
-	const [isLoading, setIsLoading] = useState(false);
-	const [buckets, setBuckets] = useState<BucketInfo[]>([]);
-
 	const ncRef = useRef<NatsConnection | null>(null);
 	const isMountedRef = useRef(true);
-
 	const { data: clusters, isLoading: loadingClusters } = useQuery({
 		queryKey: ["clusters"],
 		queryFn: () => clustersApi.getAll(),
 	});
 
-	const connectToNats = useCallback(async (clusterId: string) => {
-		// Disconnect existing connection
-		if (ncRef.current) {
-			await ncRef.current.close().catch(() => {});
-			ncRef.current = null;
-		}
+	// Fetch buckets from backend API
+	const {
+		data: buckets,
+		isLoading: loadingBuckets,
+		error: bucketsError,
+		refetch: refetchBuckets,
+	} = useQuery({
+		queryKey: ["objectstore-buckets", selectedCluster],
+		queryFn: () => objectStoreApi.listBuckets(selectedCluster),
+		enabled: !!selectedCluster,
+		retry: 1,
+	});
 
-		setConnectionError(null);
-		setIsLoading(true);
-		setBuckets([]);
+	// Connect to NATS for create/delete operations (still needs direct connection)
+	const ensureNatsConnection = useCallback(async (): Promise<NatsConnection | null> => {
+		if (ncRef.current) return ncRef.current;
+		if (!selectedCluster) return null;
 
 		try {
-			const connInfo = await clustersApi.getConnectionInfo(clusterId);
-
-			// Check for mixed content issues
-			const isSecurePage = window.location.protocol === 'https:';
-			const hasSecureWs = connInfo.urls.some(url => url.startsWith('wss://'));
-			const hasInsecureWs = connInfo.urls.some(url => url.startsWith('ws://') && !url.startsWith('wss://'));
-
-			if (isSecurePage && hasInsecureWs && !hasSecureWs) {
-				throw new Error(
-					'Security Error: This page is served over HTTPS but the NATS server uses insecure WebSocket (ws://). ' +
-					'Please configure your NATS server to use secure WebSocket (wss://) or access this app over HTTP.'
-				);
-			}
+			const connInfo = await clustersApi.getConnectionInfo(selectedCluster);
 
 			const opts: Parameters<typeof connect>[0] = {
 				servers: connInfo.urls,
@@ -144,67 +122,17 @@ function ObjectStorePage() {
 			const nc = await connect(opts);
 			if (!isMountedRef.current) {
 				await nc.close();
-				return;
+				return null;
 			}
 
 			ncRef.current = nc;
 			setNatsConnected(true);
-
-			// Load buckets
-			await loadBuckets(nc);
-
-			setIsLoading(false);
+			return nc;
 		} catch (err) {
-			console.error("Failed to connect to NATS:", err);
-			let errorMessage = err instanceof Error ? err.message : "Connection failed";
-
-			// Add helpful hints for common issues
-			if (errorMessage.includes('WebSocket') || errorMessage.includes('connect')) {
-				const isSecurePage = window.location.protocol === 'https:';
-				if (isSecurePage) {
-					errorMessage += '\n\nNote: You are accessing this app over HTTPS. Make sure your NATS server supports secure WebSocket (wss://) connections.';
-				}
-			}
-
-			setConnectionError(errorMessage);
-			setNatsConnected(false);
-			setIsLoading(false);
+			console.error("Failed to connect to NATS for operations:", err);
+			return null;
 		}
-	}, []);
-
-	const loadBuckets = async (nc: NatsConnection) => {
-		try {
-			const js = nc.jetstream();
-			const jsm = await nc.jetstreamManager();
-			const bucketList: BucketInfo[] = [];
-
-			// List all streams and filter for object store backing streams
-			for await (const stream of jsm.streams.list()) {
-				if (stream.config.name.startsWith("OBJ_")) {
-					const bucketName = stream.config.name.slice(4); // Remove "OBJ_" prefix
-					try {
-						const os = await js.views.os(bucketName);
-						const status = await os.status();
-						bucketList.push({
-							name: status.bucket,
-							description: status.description,
-							size: status.size,
-							storage: status.storage === StorageType.Memory ? "memory" : "file",
-							replicas: status.replicas,
-							sealed: status.sealed,
-							ttl: status.ttl,
-						});
-					} catch {
-						// Skip if we can't access the bucket
-					}
-				}
-			}
-
-			setBuckets(bucketList);
-		} catch (err) {
-			console.error("Failed to list buckets:", err);
-		}
-	};
+	}, [selectedCluster]);
 
 	const disconnectFromNats = useCallback(() => {
 		if (ncRef.current) {
@@ -212,17 +140,9 @@ function ObjectStorePage() {
 			ncRef.current = null;
 		}
 		setNatsConnected(false);
-		setBuckets([]);
 	}, []);
 
-	// Connect when cluster changes
-	useEffect(() => {
-		if (selectedCluster) {
-			connectToNats(selectedCluster);
-		}
-	}, [selectedCluster, connectToNats]);
-
-	// Cleanup on unmount
+	// Cleanup on unmount or cluster change
 	useEffect(() => {
 		isMountedRef.current = true;
 		return () => {
@@ -231,6 +151,11 @@ function ObjectStorePage() {
 		};
 	}, [disconnectFromNats]);
 
+	// Disconnect when cluster changes
+	useEffect(() => {
+		disconnectFromNats();
+	}, [selectedCluster, disconnectFromNats]);
+
 	// Auto-select first cluster
 	useEffect(() => {
 		if (clusters && clusters.length > 0 && !selectedCluster) {
@@ -238,37 +163,21 @@ function ObjectStorePage() {
 		}
 	}, [clusters, selectedCluster]);
 
-	const filteredBuckets = buckets.filter((bucket) =>
+	const filteredBuckets = (buckets ?? []).filter((bucket) =>
 		bucket.name.toLowerCase().includes(searchQuery.toLowerCase())
 	);
 
 	const handleDelete = async (name: string) => {
-		if (!ncRef.current) return;
 		if (!confirm(`Are you sure you want to delete bucket "${name}"? This will delete all objects and cannot be undone.`)) {
 			return;
 		}
 
 		try {
-			const js = ncRef.current.jetstream();
-			const os = await js.views.os(name);
-			await os.destroy();
-			await loadBuckets(ncRef.current);
+			await objectStoreApi.deleteBucket(selectedCluster, name);
+			refetchBuckets();
 		} catch (error) {
 			alert(error instanceof Error ? error.message : "Failed to delete bucket");
 		}
-	};
-
-	const handleRefresh = async () => {
-		if (!ncRef.current) {
-			if (selectedCluster) {
-				await connectToNats(selectedCluster);
-			}
-			return;
-		}
-
-		setIsLoading(true);
-		await loadBuckets(ncRef.current);
-		setIsLoading(false);
 	};
 
 	const handleCreateBucket = async (data: {
@@ -279,10 +188,11 @@ function ObjectStorePage() {
 		ttl?: number;
 		maxBucketSize?: number;
 	}) => {
-		if (!ncRef.current) return;
+		const nc = await ensureNatsConnection();
+		if (!nc) throw new Error("Failed to connect to NATS. Check your cluster connection settings.");
 
 		try {
-			const js = ncRef.current.jetstream();
+			const js = nc.jetstream();
 			await js.views.os(data.name, {
 				description: data.description,
 				storage: data.storage === "memory" ? StorageType.Memory : StorageType.File,
@@ -290,12 +200,16 @@ function ObjectStorePage() {
 				ttl: data.ttl,
 				max_bytes: data.maxBucketSize,
 			});
-			await loadBuckets(ncRef.current);
+			refetchBuckets();
 			setShowCreateDialog(false);
 		} catch (error) {
 			throw error;
 		}
 	};
+
+	const errorMessage = bucketsError instanceof Error ? bucketsError.message : bucketsError ? "Failed to load buckets" : null;
+	const isLoading = loadingBuckets;
+	const hasData = !!buckets;
 
 	return (
 		<>
@@ -304,7 +218,7 @@ function ObjectStorePage() {
 					<Button
 						variant="outline"
 						size="sm"
-						onClick={handleRefresh}
+						onClick={() => refetchBuckets()}
 						disabled={isLoading}
 					>
 						<RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
@@ -333,7 +247,7 @@ function ObjectStorePage() {
 							</SelectContent>
 						</Select>
 
-						{selectedCluster && (
+						{selectedCluster && hasData && (
 							<div className="relative">
 								<Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
 								<Input
@@ -344,15 +258,9 @@ function ObjectStorePage() {
 								/>
 							</div>
 						)}
-
-						{natsConnected && (
-							<Badge variant="outline" className="text-green-600">
-								Connected
-							</Badge>
-						)}
 					</div>
 
-					{selectedCluster && natsConnected && (
+					{selectedCluster && hasData && (
 						<Button onClick={() => setShowCreateDialog(true)}>
 							<Plus className="h-4 w-4 mr-2" />
 							Create Bucket
@@ -381,17 +289,17 @@ function ObjectStorePage() {
 							</Button>
 						</CardContent>
 					</Card>
-				) : connectionError ? (
+				) : errorMessage ? (
 					<Card>
 						<CardHeader>
 							<CardTitle className="flex items-center gap-2 text-destructive">
 								<AlertCircle className="h-5 w-5" />
-								Connection Error
+								Failed to Load Object Store
 							</CardTitle>
-							<CardDescription>{connectionError}</CardDescription>
+							<CardDescription className="whitespace-pre-wrap">{errorMessage}</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<Button variant="outline" onClick={() => selectedCluster && connectToNats(selectedCluster)}>
+							<Button variant="outline" onClick={() => refetchBuckets()}>
 								<RefreshCw className="h-4 w-4 mr-2" />
 								Retry
 							</Button>
@@ -495,7 +403,7 @@ function ObjectStorePage() {
 							</Table>
 						</CardContent>
 					</Card>
-				) : selectedCluster && natsConnected ? (
+				) : selectedCluster && hasData ? (
 					<Card>
 						<CardHeader>
 							<CardTitle className="flex items-center gap-2">
