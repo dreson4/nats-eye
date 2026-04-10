@@ -96,8 +96,8 @@ async function connectToClusterWs(clusterId: string): Promise<{ nc: NatsWsConnec
 		return { error: "Cluster not found" };
 	}
 
-	const urls = cluster.nats_urls?.length ? cluster.nats_urls : cluster.urls;
-	const connType = cluster.nats_urls?.length ? "TCP" : "WebSocket";
+	const urls = cluster.urls;
+	const connType = "WebSocket";
 
 	try {
 		console.log(`[ObjectStore] Connecting to cluster "${cluster.name}" via ${connType}: ${urls.join(", ")}`);
