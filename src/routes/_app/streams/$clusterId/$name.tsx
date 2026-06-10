@@ -4,12 +4,15 @@ import {
 	AlertCircle,
 	ArrowLeft,
 	Calendar,
+	Check,
 	ChevronLeft,
 	ChevronRight,
+	Copy,
 	Database,
 	Filter,
 	HardDrive,
 	Layers,
+	Maximize2,
 	Pause,
 	Play,
 	Radio,
@@ -29,6 +32,13 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -79,6 +89,15 @@ function formatDate(dateStr: string): string {
 	return date.toLocaleString();
 }
 
+function formatMessageData(data: string): string {
+	if (!data) return "";
+	try {
+		return JSON.stringify(JSON.parse(data), null, 2);
+	} catch {
+		return data;
+	}
+}
+
 interface LiveMessage {
 	seq: number;
 	subject: string;
@@ -86,6 +105,13 @@ interface LiveMessage {
 	time: string;
 	isNew?: boolean;
 }
+
+type MessageView = {
+	seq: number;
+	subject: string;
+	data: string;
+	time: string;
+};
 
 function subjectMatchesFilter(subject: string, filter: string): boolean {
 	if (!filter) return true;
@@ -95,7 +121,8 @@ function subjectMatchesFilter(subject: string, filter: string): boolean {
 	for (let i = 0; i < filterTokens.length; i++) {
 		if (filterTokens[i] === ">") return true;
 		if (i >= subjectTokens.length) return false;
-		if (filterTokens[i] !== "*" && filterTokens[i] !== subjectTokens[i]) return false;
+		if (filterTokens[i] !== "*" && filterTokens[i] !== subjectTokens[i])
+			return false;
 	}
 
 	return subjectTokens.length === filterTokens.length;
@@ -106,10 +133,16 @@ function StreamDetailPage() {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const [currentSeq, setCurrentSeq] = useState<number | undefined>(undefined);
-	const [direction, setDirection] = useState<"forward" | "backward">("backward");
+	const [direction, setDirection] = useState<"forward" | "backward">(
+		"backward",
+	);
 	const [subjectFilter, setSubjectFilter] = useState("");
 	const [activeSubjectFilter, setActiveSubjectFilter] = useState("");
 	const [activeTab, setActiveTab] = useState("messages");
+	const [selectedMessage, setSelectedMessage] = useState<MessageView | null>(
+		null,
+	);
+	const [copiedMessage, setCopiedMessage] = useState(false);
 
 	// Live streaming state
 	const [isStreaming, setIsStreaming] = useState(false);
@@ -143,8 +176,23 @@ function StreamDetailPage() {
 		isLoading: loadingMessages,
 		refetch: refetchMessages,
 	} = useQuery({
-		queryKey: ["stream-messages", clusterId, name, currentSeq, direction, activeSubjectFilter],
-		queryFn: () => streamsApi.getMessages(clusterId, name, currentSeq, 25, direction, activeSubjectFilter || undefined),
+		queryKey: [
+			"stream-messages",
+			clusterId,
+			name,
+			currentSeq,
+			direction,
+			activeSubjectFilter,
+		],
+		queryFn: () =>
+			streamsApi.getMessages(
+				clusterId,
+				name,
+				currentSeq,
+				25,
+				direction,
+				activeSubjectFilter || undefined,
+			),
 		enabled: !!stream,
 	});
 
@@ -160,14 +208,16 @@ function StreamDetailPage() {
 			const connInfo = await clustersApi.getConnectionInfo(clusterId);
 
 			// Check for mixed content issues
-			const isSecurePage = window.location.protocol === 'https:';
-			const hasSecureWs = connInfo.urls.some(url => url.startsWith('wss://'));
-			const hasInsecureWs = connInfo.urls.some(url => url.startsWith('ws://') && !url.startsWith('wss://'));
+			const isSecurePage = window.location.protocol === "https:";
+			const hasSecureWs = connInfo.urls.some((url) => url.startsWith("wss://"));
+			const hasInsecureWs = connInfo.urls.some(
+				(url) => url.startsWith("ws://") && !url.startsWith("wss://"),
+			);
 
 			if (isSecurePage && hasInsecureWs && !hasSecureWs) {
 				throw new Error(
-					'Security Error: This page is served over HTTPS but the NATS server uses insecure WebSocket (ws://). ' +
-					'Please configure your NATS server to use secure WebSocket (wss://) or access this app over HTTP.'
+					"Security Error: This page is served over HTTPS but the NATS server uses insecure WebSocket (ws://). " +
+						"Please configure your NATS server to use secure WebSocket (wss://) or access this app over HTTP.",
 				);
 			}
 
@@ -179,7 +229,11 @@ function StreamDetailPage() {
 
 			if (connInfo.authType === "token" && connInfo.token) {
 				opts.token = connInfo.token;
-			} else if (connInfo.authType === "userpass" && connInfo.username && connInfo.password) {
+			} else if (
+				connInfo.authType === "userpass" &&
+				connInfo.username &&
+				connInfo.password
+			) {
 				opts.user = connInfo.username;
 				opts.pass = connInfo.password;
 			}
@@ -224,8 +278,8 @@ function StreamDetailPage() {
 						setTimeout(() => {
 							setLiveMessages((prev) =>
 								prev.map((m) =>
-									m.seq === newMsg.seq ? { ...m, isNew: false } : m
-								)
+									m.seq === newMsg.seq ? { ...m, isNew: false } : m,
+								),
 							);
 						}, 1000);
 					},
@@ -234,13 +288,18 @@ function StreamDetailPage() {
 			}
 		} catch (err) {
 			console.error("Failed to connect to NATS:", err);
-			let errorMessage = (err instanceof Error ? err.message : undefined) || "Connection failed";
+			let errorMessage =
+				(err instanceof Error ? err.message : undefined) || "Connection failed";
 
 			// Add helpful hints for common issues
-			if (errorMessage.includes('WebSocket') || errorMessage.includes('connect')) {
-				const isSecurePage = window.location.protocol === 'https:';
+			if (
+				errorMessage.includes("WebSocket") ||
+				errorMessage.includes("connect")
+			) {
+				const isSecurePage = window.location.protocol === "https:";
 				if (isSecurePage) {
-					errorMessage += '\n\nNote: You are accessing this app over HTTPS. Make sure your NATS server supports secure WebSocket (wss://) connections.';
+					errorMessage +=
+						"\n\nNote: You are accessing this app over HTTPS. Make sure your NATS server supports secure WebSocket (wss://) connections.";
 				}
 			}
 
@@ -289,7 +348,11 @@ function StreamDetailPage() {
 	}, [disconnectNats]);
 
 	const handlePurge = async () => {
-		if (!confirm(`Are you sure you want to purge all messages from stream "${name}"?`)) {
+		if (
+			!confirm(
+				`Are you sure you want to purge all messages from stream "${name}"?`,
+			)
+		) {
 			return;
 		}
 
@@ -297,14 +360,20 @@ function StreamDetailPage() {
 			const result = await streamsApi.purge(clusterId, name);
 			alert(`Purged ${result.purged} messages`);
 			queryClient.invalidateQueries({ queryKey: ["stream", clusterId, name] });
-			queryClient.invalidateQueries({ queryKey: ["stream-messages", clusterId, name] });
+			queryClient.invalidateQueries({
+				queryKey: ["stream-messages", clusterId, name],
+			});
 		} catch (err) {
 			alert(err instanceof Error ? err.message : "Failed to purge stream");
 		}
 	};
 
 	const handleDelete = async () => {
-		if (!confirm(`Are you sure you want to delete stream "${name}"? This action cannot be undone.`)) {
+		if (
+			!confirm(
+				`Are you sure you want to delete stream "${name}"? This action cannot be undone.`,
+			)
+		) {
 			return;
 		}
 
@@ -328,7 +397,8 @@ function StreamDetailPage() {
 
 	const goToNewerPage = () => {
 		if (messagesData && messagesData.messages.length > 0) {
-			const lastMsgSeq = messagesData.messages[messagesData.messages.length - 1].seq;
+			const lastMsgSeq =
+				messagesData.messages[messagesData.messages.length - 1].seq;
 			if (lastMsgSeq < messagesData.lastSeq) {
 				setCurrentSeq(lastMsgSeq + 1);
 				setDirection("forward");
@@ -354,10 +424,15 @@ function StreamDetailPage() {
 		setDirection("backward");
 	};
 
-	const hasOlderPage = messagesData && messagesData.messages.length > 0 &&
+	const hasOlderPage =
+		messagesData &&
+		messagesData.messages.length > 0 &&
 		messagesData.messages[0].seq > messagesData.firstSeq;
-	const hasNewerPage = messagesData && messagesData.messages.length > 0 &&
-		messagesData.messages[messagesData.messages.length - 1].seq < messagesData.lastSeq;
+	const hasNewerPage =
+		messagesData &&
+		messagesData.messages.length > 0 &&
+		messagesData.messages[messagesData.messages.length - 1].seq <
+			messagesData.lastSeq;
 
 	if (error) {
 		return (
@@ -377,7 +452,9 @@ function StreamDetailPage() {
 								Error Loading Stream
 							</CardTitle>
 							<CardDescription>
-								{error instanceof Error ? error.message : "Failed to load stream"}
+								{error instanceof Error
+									? error.message
+									: "Failed to load stream"}
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
@@ -410,7 +487,9 @@ function StreamDetailPage() {
 					onClick={() => refetch()}
 					disabled={isFetching}
 				>
-					<RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+					<RefreshCw
+						className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`}
+					/>
 					Refresh
 				</Button>
 			</AppHeader>
@@ -446,7 +525,9 @@ function StreamDetailPage() {
 						<div className="grid gap-4 md:grid-cols-4">
 							<Card>
 								<CardHeader className="flex flex-row items-center justify-between pb-2">
-									<CardTitle className="text-sm font-medium">Messages</CardTitle>
+									<CardTitle className="text-sm font-medium">
+										Messages
+									</CardTitle>
 									<Layers className="h-4 w-4 text-muted-foreground" />
 								</CardHeader>
 								<CardContent>
@@ -480,7 +561,9 @@ function StreamDetailPage() {
 
 							<Card>
 								<CardHeader className="flex flex-row items-center justify-between pb-2">
-									<CardTitle className="text-sm font-medium">Consumers</CardTitle>
+									<CardTitle className="text-sm font-medium">
+										Consumers
+									</CardTitle>
 									<Layers className="h-4 w-4 text-muted-foreground" />
 								</CardHeader>
 								<CardContent>
@@ -507,11 +590,22 @@ function StreamDetailPage() {
 						</div>
 
 						{/* Tabs */}
-						<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+						<Tabs
+							value={activeTab}
+							onValueChange={setActiveTab}
+							className="space-y-4"
+						>
 							<TabsList>
 								<TabsTrigger value="messages">Messages</TabsTrigger>
 								<TabsTrigger value="live" className="gap-2">
-									<Radio className={cn("h-3 w-3", isStreaming && natsConnected && "text-green-500 animate-pulse")} />
+									<Radio
+										className={cn(
+											"h-3 w-3",
+											isStreaming &&
+												natsConnected &&
+												"text-green-500 animate-pulse",
+										)}
+									/>
 									Live
 								</TabsTrigger>
 								<TabsTrigger value="config">Configuration</TabsTrigger>
@@ -556,7 +650,10 @@ function StreamDetailPage() {
 													variant="outline"
 													size="sm"
 													onClick={goToLatest}
-													disabled={loadingMessages || (!currentSeq && direction === "backward")}
+													disabled={
+														loadingMessages ||
+														(!currentSeq && direction === "backward")
+													}
 													title="Jump to latest"
 												>
 													Latest
@@ -567,7 +664,9 @@ function StreamDetailPage() {
 													onClick={() => refetchMessages()}
 													disabled={loadingMessages}
 												>
-													<RefreshCw className={`h-4 w-4 ${loadingMessages ? "animate-spin" : ""}`} />
+													<RefreshCw
+														className={`h-4 w-4 ${loadingMessages ? "animate-spin" : ""}`}
+													/>
 												</Button>
 											</div>
 										</div>
@@ -631,20 +730,32 @@ function StreamDetailPage() {
 												</TableHeader>
 												<TableBody>
 													{messagesData.messages.map((msg) => (
-														<TableRow key={msg.seq}>
+														<TableRow
+															key={msg.seq}
+															className="group cursor-pointer"
+															onClick={() => setSelectedMessage(msg)}
+														>
 															<TableCell className="font-mono text-sm">
 																{msg.seq}
 															</TableCell>
 															<TableCell>
-																<Badge variant="outline" className="font-mono text-xs">
+																<Badge
+																	variant="outline"
+																	className="font-mono text-xs"
+																>
 																	{msg.subject}
 																</Badge>
 															</TableCell>
 															<TableCell className="text-xs text-muted-foreground">
 																{formatDate(msg.time)}
 															</TableCell>
-															<TableCell className="font-mono text-xs max-w-[400px] truncate">
-																{msg.data}
+															<TableCell className="max-w-[400px]">
+																<div className="flex items-center gap-2">
+																	<span className="min-w-0 flex-1 truncate font-mono text-xs">
+																		{msg.data}
+																	</span>
+																	<Maximize2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+																</div>
 															</TableCell>
 														</TableRow>
 													))}
@@ -675,11 +786,15 @@ function StreamDetailPage() {
 												</CardTitle>
 												<CardDescription>
 													{streamError ? (
-														<span className="text-destructive">{streamError}</span>
+														<span className="text-destructive">
+															{streamError}
+														</span>
 													) : isStreaming ? (
-														natsConnected
-															? `Watching subjects: ${stream?.subjects?.join(", ") || "..."}`
-															: "Connecting to NATS..."
+														natsConnected ? (
+															`Watching subjects: ${stream?.subjects?.join(", ") || "..."}`
+														) : (
+															"Connecting to NATS..."
+														)
 													) : (
 														"Click Start to watch for new messages in real-time"
 													)}
@@ -736,7 +851,10 @@ function StreamDetailPage() {
 											{liveSubjectFilter && (
 												<Badge variant="secondary" className="gap-1">
 													{liveSubjectFilter}
-													<button type="button" onClick={() => setLiveSubjectFilter("")}>
+													<button
+														type="button"
+														onClick={() => setLiveSubjectFilter("")}
+													>
 														<X className="h-3 w-3" />
 													</button>
 												</Badge>
@@ -747,15 +865,24 @@ function StreamDetailPage() {
 										<div className="max-h-[500px] overflow-y-auto">
 											{(() => {
 												const filtered = liveSubjectFilter
-													? liveMessages.filter((msg) => subjectMatchesFilter(msg.subject, liveSubjectFilter))
+													? liveMessages.filter((msg) =>
+															subjectMatchesFilter(
+																msg.subject,
+																liveSubjectFilter,
+															),
+														)
 													: liveMessages;
 												return filtered.length > 0 ? (
 													<Table>
 														<TableHeader>
 															<TableRow>
 																<TableHead className="w-[80px]">Seq</TableHead>
-																<TableHead className="w-[200px]">Subject</TableHead>
-																<TableHead className="w-[180px]">Time</TableHead>
+																<TableHead className="w-[200px]">
+																	Subject
+																</TableHead>
+																<TableHead className="w-[180px]">
+																	Time
+																</TableHead>
 																<TableHead>Data</TableHead>
 															</TableRow>
 														</TableHeader>
@@ -764,23 +891,33 @@ function StreamDetailPage() {
 																<TableRow
 																	key={msg.seq}
 																	className={cn(
-																		"transition-colors duration-500",
-																		msg.isNew && "bg-green-500/10 animate-pulse"
+																		"group cursor-pointer transition-colors duration-500",
+																		msg.isNew &&
+																			"bg-green-500/10 animate-pulse",
 																	)}
+																	onClick={() => setSelectedMessage(msg)}
 																>
 																	<TableCell className="font-mono text-sm">
 																		{msg.seq}
 																	</TableCell>
 																	<TableCell>
-																		<Badge variant="outline" className="font-mono text-xs">
+																		<Badge
+																			variant="outline"
+																			className="font-mono text-xs"
+																		>
 																			{msg.subject}
 																		</Badge>
 																	</TableCell>
 																	<TableCell className="text-xs text-muted-foreground">
 																		{formatDate(msg.time)}
 																	</TableCell>
-																	<TableCell className="font-mono text-xs max-w-[400px] truncate">
-																		{msg.data}
+																	<TableCell className="max-w-[400px]">
+																		<div className="flex items-center gap-2">
+																			<span className="min-w-0 flex-1 truncate font-mono text-xs">
+																				{msg.data}
+																			</span>
+																			<Maximize2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+																		</div>
 																	</TableCell>
 																</TableRow>
 															))}
@@ -832,14 +969,18 @@ function StreamDetailPage() {
 												</div>
 
 												<div>
-													<div className="text-sm font-medium">Retention Policy</div>
+													<div className="text-sm font-medium">
+														Retention Policy
+													</div>
 													<div className="text-sm text-muted-foreground capitalize">
 														{stream.retention}
 													</div>
 												</div>
 
 												<div>
-													<div className="text-sm font-medium">Discard Policy</div>
+													<div className="text-sm font-medium">
+														Discard Policy
+													</div>
 													<div className="text-sm text-muted-foreground capitalize">
 														{stream.discard}
 													</div>
@@ -848,16 +989,22 @@ function StreamDetailPage() {
 
 											<div className="space-y-4">
 												<div>
-													<div className="text-sm font-medium">Max Messages</div>
+													<div className="text-sm font-medium">
+														Max Messages
+													</div>
 													<div className="text-sm text-muted-foreground">
-														{stream.maxMsgs === -1 ? "Unlimited" : formatNumber(stream.maxMsgs)}
+														{stream.maxMsgs === -1
+															? "Unlimited"
+															: formatNumber(stream.maxMsgs)}
 													</div>
 												</div>
 
 												<div>
 													<div className="text-sm font-medium">Max Bytes</div>
 													<div className="text-sm text-muted-foreground">
-														{stream.maxBytes === -1 ? "Unlimited" : formatBytes(stream.maxBytes)}
+														{stream.maxBytes === -1
+															? "Unlimited"
+															: formatBytes(stream.maxBytes)}
 													</div>
 												</div>
 
@@ -869,9 +1016,13 @@ function StreamDetailPage() {
 												</div>
 
 												<div>
-													<div className="text-sm font-medium">Max Message Size</div>
+													<div className="text-sm font-medium">
+														Max Message Size
+													</div>
 													<div className="text-sm text-muted-foreground">
-														{stream.maxMsgSize === -1 ? "Unlimited" : formatBytes(stream.maxMsgSize)}
+														{stream.maxMsgSize === -1
+															? "Unlimited"
+															: formatBytes(stream.maxMsgSize)}
 													</div>
 												</div>
 
@@ -890,7 +1041,9 @@ function StreamDetailPage() {
 							<TabsContent value="danger" className="space-y-4">
 								<Card className="border-destructive/50">
 									<CardHeader>
-										<CardTitle className="text-destructive">Danger Zone</CardTitle>
+										<CardTitle className="text-destructive">
+											Danger Zone
+										</CardTitle>
 										<CardDescription>
 											These actions are destructive and cannot be undone.
 										</CardDescription>
@@ -900,7 +1053,8 @@ function StreamDetailPage() {
 											<div>
 												<div className="font-medium">Purge All Messages</div>
 												<div className="text-sm text-muted-foreground">
-													Remove all messages from this stream. The stream configuration will be preserved.
+													Remove all messages from this stream. The stream
+													configuration will be preserved.
 												</div>
 											</div>
 											<Button variant="outline" onClick={handlePurge}>
@@ -911,7 +1065,9 @@ function StreamDetailPage() {
 
 										<div className="flex items-center justify-between p-4 border border-destructive/50 rounded-lg">
 											<div>
-												<div className="font-medium text-destructive">Delete Stream</div>
+												<div className="font-medium text-destructive">
+													Delete Stream
+												</div>
 												<div className="text-sm text-muted-foreground">
 													Permanently delete this stream and all its messages.
 												</div>
@@ -928,6 +1084,58 @@ function StreamDetailPage() {
 					</>
 				) : null}
 			</div>
+			<Dialog
+				open={!!selectedMessage}
+				onOpenChange={(open) => {
+					if (!open) setSelectedMessage(null);
+				}}
+			>
+				<DialogContent className="max-w-2xl">
+					<DialogHeader>
+						<DialogTitle className="flex flex-wrap items-center gap-2">
+							Message
+							{selectedMessage && (
+								<Badge variant="outline" className="font-mono text-xs">
+									seq {selectedMessage.seq}
+								</Badge>
+							)}
+						</DialogTitle>
+						<DialogDescription className="flex flex-wrap items-center gap-x-3 gap-y-1">
+							{selectedMessage && (
+								<>
+									<span className="font-mono">{selectedMessage.subject}</span>
+									<span>{formatDate(selectedMessage.time)}</span>
+								</>
+							)}
+						</DialogDescription>
+					</DialogHeader>
+					<div className="space-y-2">
+						<div className="flex items-center justify-between">
+							<span className="text-sm font-medium">Payload</span>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => {
+									if (!selectedMessage) return;
+									navigator.clipboard.writeText(selectedMessage.data);
+									setCopiedMessage(true);
+									setTimeout(() => setCopiedMessage(false), 1500);
+								}}
+							>
+								{copiedMessage ? (
+									<Check className="h-3.5 w-3.5 mr-1.5" />
+								) : (
+									<Copy className="h-3.5 w-3.5 mr-1.5" />
+								)}
+								{copiedMessage ? "Copied" : "Copy"}
+							</Button>
+						</div>
+						<pre className="max-h-[60vh] overflow-auto rounded-md border bg-muted/50 p-3 font-mono text-xs whitespace-pre-wrap break-all">
+							{selectedMessage ? formatMessageData(selectedMessage.data) : ""}
+						</pre>
+					</div>
+				</DialogContent>
+			</Dialog>
 		</>
 	);
 }

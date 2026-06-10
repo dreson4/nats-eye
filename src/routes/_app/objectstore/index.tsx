@@ -11,11 +11,7 @@ import {
 	Search,
 	Trash2,
 } from "lucide-react";
-import {
-	connect,
-	type NatsConnection,
-	StorageType,
-} from "nats.ws";
+import { connect, type NatsConnection, StorageType } from "nats.ws";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppHeader } from "@/components/layout/app-header";
 import { Badge } from "@/components/ui/badge";
@@ -52,15 +48,18 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
+	GridCell,
+	GridHead,
+	GridHeaderRow,
+	GridRow,
+	GridTable,
+} from "@/components/ui/grid-table";
 import { Textarea } from "@/components/ui/textarea";
-import { clustersApi, objectStoreApi, type ObjectStoreBucketInfo } from "@/lib/api";
+import {
+	clustersApi,
+	objectStoreApi,
+	type ObjectStoreBucketInfo,
+} from "@/lib/api";
 
 export const Route = createFileRoute("/_app/objectstore/")({
 	component: ObjectStorePage,
@@ -100,39 +99,44 @@ function ObjectStorePage() {
 	});
 
 	// Connect to NATS for create/delete operations (still needs direct connection)
-	const ensureNatsConnection = useCallback(async (): Promise<NatsConnection | null> => {
-		if (ncRef.current) return ncRef.current;
-		if (!selectedCluster) return null;
+	const ensureNatsConnection =
+		useCallback(async (): Promise<NatsConnection | null> => {
+			if (ncRef.current) return ncRef.current;
+			if (!selectedCluster) return null;
 
-		try {
-			const connInfo = await clustersApi.getConnectionInfo(selectedCluster);
+			try {
+				const connInfo = await clustersApi.getConnectionInfo(selectedCluster);
 
-			const opts: Parameters<typeof connect>[0] = {
-				servers: connInfo.urls,
-				timeout: 10000,
-			};
+				const opts: Parameters<typeof connect>[0] = {
+					servers: connInfo.urls,
+					timeout: 10000,
+				};
 
-			if (connInfo.authType === "token" && connInfo.token) {
-				opts.token = connInfo.token;
-			} else if (connInfo.authType === "userpass" && connInfo.username && connInfo.password) {
-				opts.user = connInfo.username;
-				opts.pass = connInfo.password;
-			}
+				if (connInfo.authType === "token" && connInfo.token) {
+					opts.token = connInfo.token;
+				} else if (
+					connInfo.authType === "userpass" &&
+					connInfo.username &&
+					connInfo.password
+				) {
+					opts.user = connInfo.username;
+					opts.pass = connInfo.password;
+				}
 
-			const nc = await connect(opts);
-			if (!isMountedRef.current) {
-				await nc.close();
+				const nc = await connect(opts);
+				if (!isMountedRef.current) {
+					await nc.close();
+					return null;
+				}
+
+				ncRef.current = nc;
+				setNatsConnected(true);
+				return nc;
+			} catch (err) {
+				console.error("Failed to connect to NATS for operations:", err);
 				return null;
 			}
-
-			ncRef.current = nc;
-			setNatsConnected(true);
-			return nc;
-		} catch (err) {
-			console.error("Failed to connect to NATS for operations:", err);
-			return null;
-		}
-	}, [selectedCluster]);
+		}, [selectedCluster]);
 
 	const disconnectFromNats = useCallback(() => {
 		if (ncRef.current) {
@@ -164,11 +168,15 @@ function ObjectStorePage() {
 	}, [clusters, selectedCluster]);
 
 	const filteredBuckets = (buckets ?? []).filter((bucket) =>
-		bucket.name.toLowerCase().includes(searchQuery.toLowerCase())
+		bucket.name.toLowerCase().includes(searchQuery.toLowerCase()),
 	);
 
 	const handleDelete = async (name: string) => {
-		if (!confirm(`Are you sure you want to delete bucket "${name}"? This will delete all objects and cannot be undone.`)) {
+		if (
+			!confirm(
+				`Are you sure you want to delete bucket "${name}"? This will delete all objects and cannot be undone.`,
+			)
+		) {
 			return;
 		}
 
@@ -189,13 +197,17 @@ function ObjectStorePage() {
 		maxBucketSize?: number;
 	}) => {
 		const nc = await ensureNatsConnection();
-		if (!nc) throw new Error("Failed to connect to NATS. Check your cluster connection settings.");
+		if (!nc)
+			throw new Error(
+				"Failed to connect to NATS. Check your cluster connection settings.",
+			);
 
 		try {
 			const js = nc.jetstream();
 			await js.views.os(data.name, {
 				description: data.description,
-				storage: data.storage === "memory" ? StorageType.Memory : StorageType.File,
+				storage:
+					data.storage === "memory" ? StorageType.Memory : StorageType.File,
 				replicas: data.replicas,
 				ttl: data.ttl,
 				max_bytes: data.maxBucketSize,
@@ -207,7 +219,12 @@ function ObjectStorePage() {
 		}
 	};
 
-	const errorMessage = bucketsError instanceof Error ? bucketsError.message : bucketsError ? "Failed to load buckets" : null;
+	const errorMessage =
+		bucketsError instanceof Error
+			? bucketsError.message
+			: bucketsError
+				? "Failed to load buckets"
+				: null;
 	const isLoading = loadingBuckets;
 	const hasData = !!buckets;
 
@@ -221,7 +238,9 @@ function ObjectStorePage() {
 						onClick={() => refetchBuckets()}
 						disabled={isLoading}
 					>
-						<RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+						<RefreshCw
+							className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
+						/>
 						Refresh
 					</Button>
 				)}
@@ -277,7 +296,8 @@ function ObjectStorePage() {
 								No Clusters Available
 							</CardTitle>
 							<CardDescription>
-								You need to add a cluster before you can manage object store buckets.
+								You need to add a cluster before you can manage object store
+								buckets.
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
@@ -296,7 +316,9 @@ function ObjectStorePage() {
 								<AlertCircle className="h-5 w-5" />
 								Failed to Load Object Store
 							</CardTitle>
-							<CardDescription className="whitespace-pre-wrap">{errorMessage}</CardDescription>
+							<CardDescription className="whitespace-pre-wrap">
+								{errorMessage}
+							</CardDescription>
 						</CardHeader>
 						<CardContent>
 							<Button variant="outline" onClick={() => refetchBuckets()}>
@@ -319,88 +341,105 @@ function ObjectStorePage() {
 				) : filteredBuckets.length > 0 ? (
 					<Card>
 						<CardHeader>
-							<CardTitle>Object Store Buckets ({filteredBuckets.length})</CardTitle>
+							<CardTitle>
+								Object Store Buckets ({filteredBuckets.length})
+							</CardTitle>
 							<CardDescription>
 								Object store buckets for file storage in the selected cluster
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead>Name</TableHead>
-										<TableHead className="text-right">Size</TableHead>
-										<TableHead>Storage</TableHead>
-										<TableHead className="text-center">Replicas</TableHead>
-										<TableHead>Status</TableHead>
-										<TableHead className="w-[50px]" />
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{filteredBuckets.map((bucket) => (
-										<TableRow key={bucket.name} className="group relative">
-											<TableCell className="font-medium">
-												<Link
-													to="/objectstore/$clusterId/$bucket"
-													params={{ clusterId: selectedCluster, bucket: bucket.name }}
-													className="flex items-center gap-2 after:absolute after:inset-0 after:content-['']"
-												>
-													<FolderArchive className="h-4 w-4 text-primary" />
-													{bucket.name}
-												</Link>
-											</TableCell>
-											<TableCell className="text-right font-mono">
-												{formatBytes(bucket.size)}
-											</TableCell>
-											<TableCell>
-												<Badge variant={bucket.storage === "file" ? "default" : "secondary"}>
-													{bucket.storage === "file" ? (
-														<HardDrive className="h-3 w-3 mr-1" />
-													) : (
-														<MemoryStick className="h-3 w-3 mr-1" />
-													)}
-													{bucket.storage}
-												</Badge>
-											</TableCell>
-											<TableCell className="text-center">{bucket.replicas}</TableCell>
-											<TableCell>
-												{bucket.sealed ? (
-													<Badge variant="secondary">Sealed</Badge>
+							<GridTable
+								cols="grid-cols-[minmax(160px,2fr)_minmax(88px,1fr)_minmax(110px,1fr)_minmax(88px,1fr)_minmax(96px,1fr)_50px]"
+								className="min-w-[600px]"
+							>
+								<GridHeaderRow>
+									<GridHead>Name</GridHead>
+									<GridHead className="justify-end">Size</GridHead>
+									<GridHead>Storage</GridHead>
+									<GridHead className="justify-center">Replicas</GridHead>
+									<GridHead>Status</GridHead>
+									<GridHead />
+								</GridHeaderRow>
+								{filteredBuckets.map((bucket) => (
+									<GridRow key={bucket.name}>
+										<GridCell className="font-medium">
+											<Link
+												to="/objectstore/$clusterId/$bucket"
+												params={{
+													clusterId: selectedCluster,
+													bucket: bucket.name,
+												}}
+												className="flex items-center gap-2 after:absolute after:inset-0 after:content-['']"
+											>
+												<FolderArchive className="h-4 w-4 text-primary" />
+												{bucket.name}
+											</Link>
+										</GridCell>
+										<GridCell className="text-right font-mono">
+											{formatBytes(bucket.size)}
+										</GridCell>
+										<GridCell>
+											<Badge
+												variant={
+													bucket.storage === "file" ? "default" : "secondary"
+												}
+											>
+												{bucket.storage === "file" ? (
+													<HardDrive className="h-3 w-3 mr-1" />
 												) : (
-													<Badge variant="outline">Active</Badge>
+													<MemoryStick className="h-3 w-3 mr-1" />
 												)}
-											</TableCell>
-											<TableCell className="relative z-10">
-												<DropdownMenu>
-													<DropdownMenuTrigger asChild>
-														<Button variant="ghost" size="icon" className="h-8 w-8">
-															<MoreVertical className="h-4 w-4" />
-														</Button>
-													</DropdownMenuTrigger>
-													<DropdownMenuContent align="end">
-														<DropdownMenuItem asChild>
-															<Link
-																to="/objectstore/$clusterId/$bucket"
-																params={{ clusterId: selectedCluster, bucket: bucket.name }}
-															>
-																<FolderArchive className="mr-2 h-4 w-4" />
-																View Objects
-															</Link>
-														</DropdownMenuItem>
-														<DropdownMenuItem
-															onClick={() => handleDelete(bucket.name)}
-															className="text-destructive focus:text-destructive"
+												{bucket.storage}
+											</Badge>
+										</GridCell>
+										<GridCell className="text-center">
+											{bucket.replicas}
+										</GridCell>
+										<GridCell>
+											{bucket.sealed ? (
+												<Badge variant="secondary">Sealed</Badge>
+											) : (
+												<Badge variant="outline">Active</Badge>
+											)}
+										</GridCell>
+										<GridCell className="relative z-10">
+											<DropdownMenu>
+												<DropdownMenuTrigger asChild>
+													<Button
+														variant="ghost"
+														size="icon"
+														className="h-8 w-8"
+													>
+														<MoreVertical className="h-4 w-4" />
+													</Button>
+												</DropdownMenuTrigger>
+												<DropdownMenuContent align="end">
+													<DropdownMenuItem asChild>
+														<Link
+															to="/objectstore/$clusterId/$bucket"
+															params={{
+																clusterId: selectedCluster,
+																bucket: bucket.name,
+															}}
 														>
-															<Trash2 className="mr-2 h-4 w-4" />
-															Delete Bucket
-														</DropdownMenuItem>
-													</DropdownMenuContent>
-												</DropdownMenu>
-											</TableCell>
-										</TableRow>
-									))}
-								</TableBody>
-							</Table>
+															<FolderArchive className="mr-2 h-4 w-4" />
+															View Objects
+														</Link>
+													</DropdownMenuItem>
+													<DropdownMenuItem
+														onClick={() => handleDelete(bucket.name)}
+														className="text-destructive focus:text-destructive"
+													>
+														<Trash2 className="mr-2 h-4 w-4" />
+														Delete Bucket
+													</DropdownMenuItem>
+												</DropdownMenuContent>
+											</DropdownMenu>
+										</GridCell>
+									</GridRow>
+								))}
+							</GridTable>
 						</CardContent>
 					</Card>
 				) : selectedCluster && hasData ? (
@@ -524,7 +563,9 @@ function CreateBucketDialog({
 		}
 
 		if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-			setError("Name can only contain letters, numbers, underscores, and hyphens");
+			setError(
+				"Name can only contain letters, numbers, underscores, and hyphens",
+			);
 			return;
 		}
 
@@ -547,7 +588,13 @@ function CreateBucketDialog({
 	};
 
 	return (
-		<Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) resetForm(); }}>
+		<Dialog
+			open={open}
+			onOpenChange={(o) => {
+				onOpenChange(o);
+				if (!o) resetForm();
+			}}
+		>
 			<DialogContent className="max-w-md">
 				<DialogHeader>
 					<DialogTitle>Create Object Store Bucket</DialogTitle>
@@ -590,7 +637,10 @@ function CreateBucketDialog({
 					<div className="grid grid-cols-2 gap-4">
 						<div className="space-y-2">
 							<Label>Storage</Label>
-							<Select value={storage} onValueChange={(v) => setStorage(v as typeof storage)}>
+							<Select
+								value={storage}
+								onValueChange={(v) => setStorage(v as typeof storage)}
+							>
 								<SelectTrigger>
 									<SelectValue />
 								</SelectTrigger>
@@ -639,7 +689,11 @@ function CreateBucketDialog({
 					</div>
 
 					<DialogFooter>
-						<Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() => onOpenChange(false)}
+						>
 							Cancel
 						</Button>
 						<Button type="submit" disabled={isCreating}>

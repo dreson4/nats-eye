@@ -38,13 +38,12 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
+	GridCell,
+	GridHead,
+	GridHeaderRow,
+	GridRow,
+	GridTable,
+} from "@/components/ui/grid-table";
 import { clustersApi, kvApi } from "@/lib/api";
 import { CreateKvBucketDialog } from "@/components/kv/create-bucket-dialog";
 
@@ -75,31 +74,42 @@ function KVPage() {
 	const { data: clusters, isLoading: loadingClusters } = useQuery({
 		queryKey: ["clusters"],
 		queryFn: () => clustersApi.getAll(),
-	})
+	});
 
-	const { data: buckets, isLoading: loadingBuckets, refetch, isFetching } = useQuery({
+	const {
+		data: buckets,
+		isLoading: loadingBuckets,
+		refetch,
+		isFetching,
+	} = useQuery({
 		queryKey: ["kv-buckets", selectedCluster],
 		queryFn: () => kvApi.listBuckets(selectedCluster),
 		enabled: !!selectedCluster,
-	})
+	});
 
 	const filteredBuckets = buckets?.filter((bucket) =>
-		bucket.name.toLowerCase().includes(searchQuery.toLowerCase())
-	)
+		bucket.name.toLowerCase().includes(searchQuery.toLowerCase()),
+	);
 
 	const handleDelete = async (name: string) => {
 		if (!selectedCluster) return;
-		if (!confirm(`Are you sure you want to delete bucket "${name}"? This will delete all keys and cannot be undone.`)) {
-			return
+		if (
+			!confirm(
+				`Are you sure you want to delete bucket "${name}"? This will delete all keys and cannot be undone.`,
+			)
+		) {
+			return;
 		}
 
 		try {
 			await kvApi.deleteBucket(selectedCluster, name);
-			queryClient.invalidateQueries({ queryKey: ["kv-buckets", selectedCluster] });
+			queryClient.invalidateQueries({
+				queryKey: ["kv-buckets", selectedCluster],
+			});
 		} catch (error) {
 			alert(error instanceof Error ? error.message : "Failed to delete bucket");
 		}
-	}
+	};
 
 	// Auto-select first cluster
 	if (clusters && clusters.length > 0 && !selectedCluster) {
@@ -116,7 +126,9 @@ function KVPage() {
 						onClick={() => refetch()}
 						disabled={isFetching}
 					>
-						<RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+						<RefreshCw
+							className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`}
+						/>
 						Refresh
 					</Button>
 				)}
@@ -204,84 +216,91 @@ function KVPage() {
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead>Name</TableHead>
-										<TableHead className="text-right">Keys</TableHead>
-										<TableHead className="text-right">Size</TableHead>
-										<TableHead className="text-right">History</TableHead>
-										<TableHead>Storage</TableHead>
-										<TableHead className="w-[50px]" />
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{filteredBuckets.map((bucket) => (
-										<TableRow key={bucket.name} className="group relative">
-											<TableCell className="font-medium">
-												<Link
-													to="/kv/$clusterId/$bucket"
-													params={{ clusterId: selectedCluster, bucket: bucket.name }}
-													className="flex items-center gap-2 after:absolute after:inset-0 after:content-['']"
-												>
-													<Database className="h-4 w-4 text-primary" />
-													{bucket.name}
-												</Link>
-											</TableCell>
-											<TableCell className="text-right font-mono">
-												{formatNumber(bucket.values)}
-											</TableCell>
-											<TableCell className="text-right font-mono">
-												{formatBytes(bucket.size)}
-											</TableCell>
-											<TableCell className="text-right">
-												{bucket.history}
-											</TableCell>
-											<TableCell>
-												<Badge variant={bucket.storage === "file" ? "default" : "secondary"}>
-													{bucket.storage === "file" ? (
-														<HardDrive className="h-3 w-3 mr-1" />
-													) : (
-														<Database className="h-3 w-3 mr-1" />
-													)}
-													{bucket.storage}
-												</Badge>
-											</TableCell>
-											<TableCell className="relative z-10">
-												<DropdownMenu>
-													<DropdownMenuTrigger asChild>
-														<Button
-															variant="ghost"
-															size="icon"
-															className="h-8 w-8"
+							<GridTable
+								cols="grid-cols-[minmax(160px,2fr)_minmax(72px,1fr)_minmax(88px,1fr)_minmax(80px,1fr)_minmax(110px,1fr)_50px]"
+								className="min-w-[560px]"
+							>
+								<GridHeaderRow>
+									<GridHead>Name</GridHead>
+									<GridHead className="justify-end">Keys</GridHead>
+									<GridHead className="justify-end">Size</GridHead>
+									<GridHead className="justify-end">History</GridHead>
+									<GridHead>Storage</GridHead>
+									<GridHead />
+								</GridHeaderRow>
+								{filteredBuckets.map((bucket) => (
+									<GridRow key={bucket.name}>
+										<GridCell className="font-medium">
+											<Link
+												to="/kv/$clusterId/$bucket"
+												params={{
+													clusterId: selectedCluster,
+													bucket: bucket.name,
+												}}
+												className="flex items-center gap-2 after:absolute after:inset-0 after:content-['']"
+											>
+												<Database className="h-4 w-4 text-primary" />
+												{bucket.name}
+											</Link>
+										</GridCell>
+										<GridCell className="text-right font-mono">
+											{formatNumber(bucket.values)}
+										</GridCell>
+										<GridCell className="text-right font-mono">
+											{formatBytes(bucket.size)}
+										</GridCell>
+										<GridCell className="text-right">{bucket.history}</GridCell>
+										<GridCell>
+											<Badge
+												variant={
+													bucket.storage === "file" ? "default" : "secondary"
+												}
+											>
+												{bucket.storage === "file" ? (
+													<HardDrive className="h-3 w-3 mr-1" />
+												) : (
+													<Database className="h-3 w-3 mr-1" />
+												)}
+												{bucket.storage}
+											</Badge>
+										</GridCell>
+										<GridCell className="relative z-10">
+											<DropdownMenu>
+												<DropdownMenuTrigger asChild>
+													<Button
+														variant="ghost"
+														size="icon"
+														className="h-8 w-8"
+													>
+														<MoreVertical className="h-4 w-4" />
+													</Button>
+												</DropdownMenuTrigger>
+												<DropdownMenuContent align="end">
+													<DropdownMenuItem asChild>
+														<Link
+															to="/kv/$clusterId/$bucket"
+															params={{
+																clusterId: selectedCluster,
+																bucket: bucket.name,
+															}}
 														>
-															<MoreVertical className="h-4 w-4" />
-														</Button>
-													</DropdownMenuTrigger>
-													<DropdownMenuContent align="end">
-														<DropdownMenuItem asChild>
-															<Link
-																to="/kv/$clusterId/$bucket"
-																params={{ clusterId: selectedCluster, bucket: bucket.name }}
-															>
-																<Key className="mr-2 h-4 w-4" />
-																View Keys
-															</Link>
-														</DropdownMenuItem>
-														<DropdownMenuItem
-															onClick={() => handleDelete(bucket.name)}
-															className="text-destructive focus:text-destructive"
-														>
-															<Trash2 className="mr-2 h-4 w-4" />
-															Delete Bucket
-														</DropdownMenuItem>
-													</DropdownMenuContent>
-												</DropdownMenu>
-											</TableCell>
-										</TableRow>
-									))}
-								</TableBody>
-							</Table>
+															<Key className="mr-2 h-4 w-4" />
+															View Keys
+														</Link>
+													</DropdownMenuItem>
+													<DropdownMenuItem
+														onClick={() => handleDelete(bucket.name)}
+														className="text-destructive focus:text-destructive"
+													>
+														<Trash2 className="mr-2 h-4 w-4" />
+														Delete Bucket
+													</DropdownMenuItem>
+												</DropdownMenuContent>
+											</DropdownMenu>
+										</GridCell>
+									</GridRow>
+								))}
+							</GridTable>
 						</CardContent>
 					</Card>
 				) : selectedCluster ? (
@@ -317,5 +336,5 @@ function KVPage() {
 				/>
 			)}
 		</>
-	)
+	);
 }

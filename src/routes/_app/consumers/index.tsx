@@ -40,13 +40,12 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
+	GridCell,
+	GridHead,
+	GridHeaderRow,
+	GridRow,
+	GridTable,
+} from "@/components/ui/grid-table";
 import { clustersApi, consumersApi, streamsApi } from "@/lib/api";
 import { CreateConsumerDialog } from "@/components/consumers/create-consumer-dialog";
 
@@ -78,7 +77,12 @@ function ConsumersPage() {
 		enabled: !!selectedCluster,
 	});
 
-	const { data: consumers, isLoading: loadingConsumers, refetch, isFetching } = useQuery({
+	const {
+		data: consumers,
+		isLoading: loadingConsumers,
+		refetch,
+		isFetching,
+	} = useQuery({
 		queryKey: ["consumers", selectedCluster, selectedStream],
 		queryFn: () =>
 			selectedStream
@@ -87,23 +91,34 @@ function ConsumersPage() {
 		enabled: !!selectedCluster,
 	});
 
-	const filteredConsumers = consumers?.filter((consumer) =>
-		consumer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-		consumer.stream.toLowerCase().includes(searchQuery.toLowerCase()) ||
-		consumer.config.filterSubject?.toLowerCase().includes(searchQuery.toLowerCase())
+	const filteredConsumers = consumers?.filter(
+		(consumer) =>
+			consumer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+			consumer.stream.toLowerCase().includes(searchQuery.toLowerCase()) ||
+			consumer.config.filterSubject
+				?.toLowerCase()
+				.includes(searchQuery.toLowerCase()),
 	);
 
 	const handleDelete = async (streamName: string, consumerName: string) => {
 		if (!selectedCluster) return;
-		if (!confirm(`Are you sure you want to delete consumer "${consumerName}"? This action cannot be undone.`)) {
+		if (
+			!confirm(
+				`Are you sure you want to delete consumer "${consumerName}"? This action cannot be undone.`,
+			)
+		) {
 			return;
 		}
 
 		try {
 			await consumersApi.delete(selectedCluster, streamName, consumerName);
-			queryClient.invalidateQueries({ queryKey: ["consumers", selectedCluster] });
+			queryClient.invalidateQueries({
+				queryKey: ["consumers", selectedCluster],
+			});
 		} catch (error) {
-			alert(error instanceof Error ? error.message : "Failed to delete consumer");
+			alert(
+				error instanceof Error ? error.message : "Failed to delete consumer",
+			);
 		}
 	};
 
@@ -122,7 +137,9 @@ function ConsumersPage() {
 						onClick={() => refetch()}
 						disabled={isFetching}
 					>
-						<RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+						<RefreshCw
+							className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`}
+						/>
 						Refresh
 					</Button>
 				)}
@@ -154,7 +171,9 @@ function ConsumersPage() {
 						{selectedCluster && (
 							<Select
 								value={selectedStream || "__all__"}
-								onValueChange={(v) => setSelectedStream(v === "__all__" ? "" : v)}
+								onValueChange={(v) =>
+									setSelectedStream(v === "__all__" ? "" : v)
+								}
 								disabled={loadingStreams}
 							>
 								<SelectTrigger className="w-[200px]">
@@ -235,108 +254,130 @@ function ConsumersPage() {
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead>Name</TableHead>
-										<TableHead>Stream</TableHead>
-										<TableHead>Filter</TableHead>
-										<TableHead className="text-right">Pending</TableHead>
-										<TableHead className="text-right">Ack Pending</TableHead>
-										<TableHead className="text-right">Redelivered</TableHead>
-										<TableHead>Ack Policy</TableHead>
-										<TableHead className="w-[50px]" />
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{filteredConsumers.map((consumer) => (
-										<TableRow key={`${consumer.stream}-${consumer.name}`} className="group relative">
-											<TableCell className="font-medium">
-												<Link
-													to="/consumers/$clusterId/$stream/$consumer"
-													params={{
-														clusterId: selectedCluster,
-														stream: consumer.stream,
-														consumer: consumer.name,
-													}}
-													className="hover:underline after:absolute after:inset-0 after:content-['']"
-												>
-													{consumer.name}
-												</Link>
-											</TableCell>
-											<TableCell>
-												<Badge variant="outline">{consumer.stream}</Badge>
-											</TableCell>
-											<TableCell>
-												{consumer.config.filterSubject ? (
-													<Badge variant="secondary" className="text-xs font-mono">
-														{consumer.config.filterSubject}
-													</Badge>
-												) : consumer.config.filterSubjects?.length ? (
-													<Badge variant="secondary" className="text-xs">
-														{consumer.config.filterSubjects.length} subjects
-													</Badge>
-												) : (
-													<span className="text-muted-foreground text-sm">All</span>
-												)}
-											</TableCell>
-											<TableCell className="text-right font-mono">
-												{formatNumber(consumer.numPending)}
-											</TableCell>
-											<TableCell className="text-right font-mono">
-												<span className={consumer.numAckPending > 0 ? "text-yellow-500" : ""}>
-													{formatNumber(consumer.numAckPending)}
-												</span>
-											</TableCell>
-											<TableCell className="text-right font-mono">
-												<span className={consumer.numRedelivered > 0 ? "text-orange-500" : ""}>
-													{formatNumber(consumer.numRedelivered)}
-												</span>
-											</TableCell>
-											<TableCell>
+							<GridTable
+								cols="grid-cols-[minmax(140px,1.5fr)_minmax(120px,1fr)_minmax(120px,1.5fr)_minmax(88px,1fr)_minmax(104px,1fr)_minmax(112px,1fr)_minmax(100px,1fr)_50px]"
+								className="min-w-[840px]"
+							>
+								<GridHeaderRow>
+									<GridHead>Name</GridHead>
+									<GridHead>Stream</GridHead>
+									<GridHead>Filter</GridHead>
+									<GridHead className="justify-end">Pending</GridHead>
+									<GridHead className="justify-end">Ack Pending</GridHead>
+									<GridHead className="justify-end">Redelivered</GridHead>
+									<GridHead>Ack Policy</GridHead>
+									<GridHead />
+								</GridHeaderRow>
+								{filteredConsumers.map((consumer) => (
+									<GridRow key={`${consumer.stream}-${consumer.name}`}>
+										<GridCell className="font-medium">
+											<Link
+												to="/consumers/$clusterId/$stream/$consumer"
+												params={{
+													clusterId: selectedCluster,
+													stream: consumer.stream,
+													consumer: consumer.name,
+												}}
+												className="hover:underline after:absolute after:inset-0 after:content-['']"
+											>
+												{consumer.name}
+											</Link>
+										</GridCell>
+										<GridCell>
+											<Badge variant="outline">{consumer.stream}</Badge>
+										</GridCell>
+										<GridCell>
+											{consumer.config.filterSubject ? (
 												<Badge
-													variant={consumer.config.ackPolicy === "explicit" ? "default" : "secondary"}
-													className="text-xs"
+													variant="secondary"
+													className="text-xs font-mono"
 												>
-													{consumer.config.ackPolicy}
+													{consumer.config.filterSubject}
 												</Badge>
-											</TableCell>
-											<TableCell className="relative z-10">
-												<DropdownMenu>
-													<DropdownMenuTrigger asChild>
-														<Button variant="ghost" size="icon" className="h-8 w-8">
-															<MoreVertical className="h-4 w-4" />
-														</Button>
-													</DropdownMenuTrigger>
-													<DropdownMenuContent align="end">
-														<DropdownMenuItem asChild>
-															<Link
-																to="/consumers/$clusterId/$stream/$consumer"
-																params={{
-																	clusterId: selectedCluster,
-																	stream: consumer.stream,
-																	consumer: consumer.name,
-																}}
-															>
-																<Users className="mr-2 h-4 w-4" />
-																View Details
-															</Link>
-														</DropdownMenuItem>
-														<DropdownMenuSeparator />
-														<DropdownMenuItem
-															onClick={() => handleDelete(consumer.stream, consumer.name)}
-															className="text-destructive focus:text-destructive"
+											) : consumer.config.filterSubjects?.length ? (
+												<Badge variant="secondary" className="text-xs">
+													{consumer.config.filterSubjects.length} subjects
+												</Badge>
+											) : (
+												<span className="text-muted-foreground text-sm">
+													All
+												</span>
+											)}
+										</GridCell>
+										<GridCell className="text-right font-mono">
+											{formatNumber(consumer.numPending)}
+										</GridCell>
+										<GridCell className="text-right font-mono">
+											<span
+												className={
+													consumer.numAckPending > 0 ? "text-yellow-500" : ""
+												}
+											>
+												{formatNumber(consumer.numAckPending)}
+											</span>
+										</GridCell>
+										<GridCell className="text-right font-mono">
+											<span
+												className={
+													consumer.numRedelivered > 0 ? "text-orange-500" : ""
+												}
+											>
+												{formatNumber(consumer.numRedelivered)}
+											</span>
+										</GridCell>
+										<GridCell>
+											<Badge
+												variant={
+													consumer.config.ackPolicy === "explicit"
+														? "default"
+														: "secondary"
+												}
+												className="text-xs"
+											>
+												{consumer.config.ackPolicy}
+											</Badge>
+										</GridCell>
+										<GridCell className="relative z-10">
+											<DropdownMenu>
+												<DropdownMenuTrigger asChild>
+													<Button
+														variant="ghost"
+														size="icon"
+														className="h-8 w-8"
+													>
+														<MoreVertical className="h-4 w-4" />
+													</Button>
+												</DropdownMenuTrigger>
+												<DropdownMenuContent align="end">
+													<DropdownMenuItem asChild>
+														<Link
+															to="/consumers/$clusterId/$stream/$consumer"
+															params={{
+																clusterId: selectedCluster,
+																stream: consumer.stream,
+																consumer: consumer.name,
+															}}
 														>
-															<Trash2 className="mr-2 h-4 w-4" />
-															Delete Consumer
-														</DropdownMenuItem>
-													</DropdownMenuContent>
-												</DropdownMenu>
-											</TableCell>
-										</TableRow>
-									))}
-								</TableBody>
-							</Table>
+															<Users className="mr-2 h-4 w-4" />
+															View Details
+														</Link>
+													</DropdownMenuItem>
+													<DropdownMenuSeparator />
+													<DropdownMenuItem
+														onClick={() =>
+															handleDelete(consumer.stream, consumer.name)
+														}
+														className="text-destructive focus:text-destructive"
+													>
+														<Trash2 className="mr-2 h-4 w-4" />
+														Delete Consumer
+													</DropdownMenuItem>
+												</DropdownMenuContent>
+											</DropdownMenu>
+										</GridCell>
+									</GridRow>
+								))}
+							</GridTable>
 						</CardContent>
 					</Card>
 				) : selectedCluster ? (

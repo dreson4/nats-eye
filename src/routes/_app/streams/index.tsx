@@ -39,13 +39,12 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
+	GridCell,
+	GridHead,
+	GridHeaderRow,
+	GridRow,
+	GridTable,
+} from "@/components/ui/grid-table";
 import { clustersApi, streamsApi } from "@/lib/api";
 import { CreateStreamDialog } from "@/components/streams/create-stream-dialog";
 
@@ -76,23 +75,35 @@ function StreamsPage() {
 	const { data: clusters, isLoading: loadingClusters } = useQuery({
 		queryKey: ["clusters"],
 		queryFn: () => clustersApi.getAll(),
-	})
+	});
 
-	const { data: streams, isLoading: loadingStreams, refetch, isFetching } = useQuery({
+	const {
+		data: streams,
+		isLoading: loadingStreams,
+		refetch,
+		isFetching,
+	} = useQuery({
 		queryKey: ["streams", selectedCluster],
 		queryFn: () => streamsApi.list(selectedCluster),
 		enabled: !!selectedCluster,
-	})
+	});
 
-	const filteredStreams = streams?.filter((stream) =>
-		stream.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-		stream.subjects.some((s) => s.toLowerCase().includes(searchQuery.toLowerCase()))
-	)
+	const filteredStreams = streams?.filter(
+		(stream) =>
+			stream.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+			stream.subjects.some((s) =>
+				s.toLowerCase().includes(searchQuery.toLowerCase()),
+			),
+	);
 
 	const handleDelete = async (name: string) => {
 		if (!selectedCluster) return;
-		if (!confirm(`Are you sure you want to delete stream "${name}"? This action cannot be undone.`)) {
-			return
+		if (
+			!confirm(
+				`Are you sure you want to delete stream "${name}"? This action cannot be undone.`,
+			)
+		) {
+			return;
 		}
 
 		try {
@@ -101,12 +112,16 @@ function StreamsPage() {
 		} catch (error) {
 			alert(error instanceof Error ? error.message : "Failed to delete stream");
 		}
-	}
+	};
 
 	const handlePurge = async (name: string) => {
 		if (!selectedCluster) return;
-		if (!confirm(`Are you sure you want to purge all messages from stream "${name}"?`)) {
-			return
+		if (
+			!confirm(
+				`Are you sure you want to purge all messages from stream "${name}"?`,
+			)
+		) {
+			return;
 		}
 
 		try {
@@ -116,7 +131,7 @@ function StreamsPage() {
 		} catch (error) {
 			alert(error instanceof Error ? error.message : "Failed to purge stream");
 		}
-	}
+	};
 
 	// Auto-select first cluster
 	if (clusters && clusters.length > 0 && !selectedCluster) {
@@ -133,7 +148,9 @@ function StreamsPage() {
 						onClick={() => refetch()}
 						disabled={isFetching}
 					>
-						<RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+						<RefreshCw
+							className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`}
+						/>
 						Refresh
 					</Button>
 				)}
@@ -221,99 +238,118 @@ function StreamsPage() {
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead>Name</TableHead>
-										<TableHead>Subjects</TableHead>
-										<TableHead className="text-right">Messages</TableHead>
-										<TableHead className="text-right">Size</TableHead>
-										<TableHead className="text-right">Consumers</TableHead>
-										<TableHead>Storage</TableHead>
-										<TableHead className="w-[50px]" />
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{filteredStreams.map((stream) => (
-										<TableRow key={stream.name} className="group relative">
-											<TableCell className="font-medium">
-												<Link
-													to="/streams/$clusterId/$name"
-													params={{ clusterId: selectedCluster, name: stream.name }}
-													className="hover:underline after:absolute after:inset-0 after:content-['']"
-												>
-													{stream.name}
-												</Link>
-											</TableCell>
-											<TableCell>
-												<div className="flex flex-wrap gap-1">
-													{stream.subjects.slice(0, 3).map((subject) => (
-														<Badge key={subject} variant="secondary" className="text-xs">
-															{subject}
-														</Badge>
-													))}
-													{stream.subjects.length > 3 && (
-														<Badge variant="outline" className="text-xs">
-															+{stream.subjects.length - 3}
-														</Badge>
-													)}
-												</div>
-											</TableCell>
-											<TableCell className="text-right font-mono">
-												{formatNumber(stream.state.messages)}
-											</TableCell>
-											<TableCell className="text-right font-mono">
-												{formatBytes(stream.state.bytes)}
-											</TableCell>
-											<TableCell className="text-right">
-												{stream.state.consumerCount}
-											</TableCell>
-											<TableCell>
-												<Badge variant={stream.storage === "file" ? "default" : "secondary"}>
-													{stream.storage === "file" ? (
-														<HardDrive className="h-3 w-3 mr-1" />
-													) : (
-														<Database className="h-3 w-3 mr-1" />
-													)}
-													{stream.storage}
-												</Badge>
-											</TableCell>
-											<TableCell className="relative z-10">
-												<DropdownMenu>
-													<DropdownMenuTrigger asChild>
-														<Button variant="ghost" size="icon" className="h-8 w-8">
-															<MoreVertical className="h-4 w-4" />
-														</Button>
-													</DropdownMenuTrigger>
-													<DropdownMenuContent align="end">
-														<DropdownMenuItem asChild>
-															<Link
-																to="/streams/$clusterId/$name"
-																params={{ clusterId: selectedCluster, name: stream.name }}
-															>
-																<Layers className="mr-2 h-4 w-4" />
-																View Details
-															</Link>
-														</DropdownMenuItem>
-														<DropdownMenuItem onClick={() => handlePurge(stream.name)}>
-															<RefreshCw className="mr-2 h-4 w-4" />
-															Purge Messages
-														</DropdownMenuItem>
-														<DropdownMenuSeparator />
-														<DropdownMenuItem
-															onClick={() => handleDelete(stream.name)}
-															className="text-destructive focus:text-destructive"
+							<GridTable
+								cols="grid-cols-[minmax(140px,1.5fr)_minmax(160px,2fr)_minmax(96px,1fr)_minmax(88px,1fr)_minmax(96px,1fr)_minmax(110px,1fr)_50px]"
+								className="min-w-[740px]"
+							>
+								<GridHeaderRow>
+									<GridHead>Name</GridHead>
+									<GridHead>Subjects</GridHead>
+									<GridHead className="justify-end">Messages</GridHead>
+									<GridHead className="justify-end">Size</GridHead>
+									<GridHead className="justify-end">Consumers</GridHead>
+									<GridHead>Storage</GridHead>
+									<GridHead />
+								</GridHeaderRow>
+								{filteredStreams.map((stream) => (
+									<GridRow key={stream.name}>
+										<GridCell className="font-medium">
+											<Link
+												to="/streams/$clusterId/$name"
+												params={{
+													clusterId: selectedCluster,
+													name: stream.name,
+												}}
+												className="hover:underline after:absolute after:inset-0 after:content-['']"
+											>
+												{stream.name}
+											</Link>
+										</GridCell>
+										<GridCell>
+											<div className="flex flex-wrap gap-1">
+												{stream.subjects.slice(0, 3).map((subject) => (
+													<Badge
+														key={subject}
+														variant="secondary"
+														className="text-xs"
+													>
+														{subject}
+													</Badge>
+												))}
+												{stream.subjects.length > 3 && (
+													<Badge variant="outline" className="text-xs">
+														+{stream.subjects.length - 3}
+													</Badge>
+												)}
+											</div>
+										</GridCell>
+										<GridCell className="text-right font-mono">
+											{formatNumber(stream.state.messages)}
+										</GridCell>
+										<GridCell className="text-right font-mono">
+											{formatBytes(stream.state.bytes)}
+										</GridCell>
+										<GridCell className="text-right">
+											{stream.state.consumerCount}
+										</GridCell>
+										<GridCell>
+											<Badge
+												variant={
+													stream.storage === "file" ? "default" : "secondary"
+												}
+											>
+												{stream.storage === "file" ? (
+													<HardDrive className="h-3 w-3 mr-1" />
+												) : (
+													<Database className="h-3 w-3 mr-1" />
+												)}
+												{stream.storage}
+											</Badge>
+										</GridCell>
+										<GridCell className="relative z-10">
+											<DropdownMenu>
+												<DropdownMenuTrigger asChild>
+													<Button
+														variant="ghost"
+														size="icon"
+														className="h-8 w-8"
+													>
+														<MoreVertical className="h-4 w-4" />
+													</Button>
+												</DropdownMenuTrigger>
+												<DropdownMenuContent align="end">
+													<DropdownMenuItem asChild>
+														<Link
+															to="/streams/$clusterId/$name"
+															params={{
+																clusterId: selectedCluster,
+																name: stream.name,
+															}}
 														>
-															<Trash2 className="mr-2 h-4 w-4" />
-															Delete Stream
-														</DropdownMenuItem>
-													</DropdownMenuContent>
-												</DropdownMenu>
-											</TableCell>
-										</TableRow>
-									))}
-								</TableBody>
-							</Table>
+															<Layers className="mr-2 h-4 w-4" />
+															View Details
+														</Link>
+													</DropdownMenuItem>
+													<DropdownMenuItem
+														onClick={() => handlePurge(stream.name)}
+													>
+														<RefreshCw className="mr-2 h-4 w-4" />
+														Purge Messages
+													</DropdownMenuItem>
+													<DropdownMenuSeparator />
+													<DropdownMenuItem
+														onClick={() => handleDelete(stream.name)}
+														className="text-destructive focus:text-destructive"
+													>
+														<Trash2 className="mr-2 h-4 w-4" />
+														Delete Stream
+													</DropdownMenuItem>
+												</DropdownMenuContent>
+											</DropdownMenu>
+										</GridCell>
+									</GridRow>
+								))}
+							</GridTable>
 						</CardContent>
 					</Card>
 				) : selectedCluster ? (
@@ -349,5 +385,5 @@ function StreamsPage() {
 				/>
 			)}
 		</>
-	)
+	);
 }
